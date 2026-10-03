@@ -86,7 +86,8 @@ fi
 /usr/bin/plutil -replace UTExportedTypeDeclarations.0.UTTypeIdentifier -string com.openfrontier.surface-id "$info"
 /usr/bin/plutil -replace UTExportedTypeDeclarations.0.UTTypeDescription -string "OpenFrontier Surface Identifier" "$info"
 /usr/bin/plutil -replace SUEnableAutomaticChecks -bool false "$info"
-/usr/bin/plutil -remove SUPublicEDKey "$info" 2>/dev/null || true
+/usr/bin/plutil -insert SUPublicEDKey -string "wsNcGf5hirwtdXMVnYoxRIX/SqZQLMOsYlD3q3imeok=" "$info" 2>/dev/null || \
+    /usr/bin/plutil -replace SUPublicEDKey -string "wsNcGf5hirwtdXMVnYoxRIX/SqZQLMOsYlD3q3imeok=" "$info"
 /usr/bin/plutil -remove GhosttyBuild "$info" 2>/dev/null || true
 /usr/bin/plutil -remove GhosttyCommit "$info" 2>/dev/null || true
 /usr/bin/plutil -insert OpenFrontierBuild -string personal "$info" 2>/dev/null || \

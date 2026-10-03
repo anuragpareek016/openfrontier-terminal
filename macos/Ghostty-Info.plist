@@ -110,6 +110,9 @@
 	</array>
 	<key>SUEnableAutomaticChecks</key>
 	<false/>
+	<!-- Public verification material only. Update feeds and checks are disabled. -->
+	<key>SUPublicEDKey</key>
+	<string>wsNcGf5hirwtdXMVnYoxRIX/SqZQLMOsYlD3q3imeok=</string>
 	<key>UTExportedTypeDeclarations</key>
 	<array>
 		<dict>
