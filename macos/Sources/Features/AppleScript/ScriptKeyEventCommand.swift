@@ -3,10 +3,10 @@ import AppKit
 /// Handler for the `send key` AppleScript command defined in `Ghostty.sdef`.
 ///
 /// Cocoa scripting instantiates this class because the command's `<cocoa>` element
-/// specifies `class="GhosttyScriptKeyEventCommand"`. The runtime calls
+/// specifies `class="OpenFrontierScriptKeyEventCommand"`. The runtime calls
 /// `performDefaultImplementation()` to execute the command.
 @MainActor
-@objc(GhosttyScriptKeyEventCommand)
+@objc(OpenFrontierScriptKeyEventCommand)
 final class ScriptKeyEventCommand: NSScriptCommand {
     override func performDefaultImplementation() -> Any? {
         guard NSApp.validateScript(command: self) else { return nil }

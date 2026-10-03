@@ -277,7 +277,7 @@ enum UpdateState: Equatable {
         let reply: @Sendable (SPUUserUpdateChoice) -> Void
 
         var releaseNotes: ReleaseNotes? {
-            let currentCommit = Bundle.main.infoDictionary?["GhosttyCommit"] as? String
+            let currentCommit = Bundle.main.infoDictionary?["OpenFrontierCommit"] as? String
             return ReleaseNotes(displayVersionString: appcastItem.displayVersionString, currentCommit: currentCommit)
         }
     }
@@ -288,30 +288,7 @@ enum UpdateState: Equatable {
         case tagged(URL)
 
         init?(displayVersionString: String, currentCommit: String?) {
-            let version = displayVersionString
-
-            // Check for semantic version (x.y.z)
-            if let semver = Self.extractSemanticVersion(from: version) {
-                let slug = semver.replacingOccurrences(of: ".", with: "-")
-                if let url = URL(string: "https://ghostty.org/docs/install/release-notes/\(slug)") {
-                    self = .tagged(url)
-                    return
-                }
-            }
-
-            // Fall back to git hash detection
-            guard let newHash = Self.extractGitHash(from: version) else {
-                return nil
-            }
-
-            if let currentHash = currentCommit, !currentHash.isEmpty,
-               let url = URL(string: "https://github.com/ghostty-org/ghostty/compare/\(currentHash)...\(newHash)") {
-                self = .compareTip(url)
-            } else if let url = URL(string: "https://github.com/ghostty-org/ghostty/commit/\(newHash)") {
-                self = .commit(url)
-            } else {
-                return nil
-            }
+            return nil
         }
 
         private static func extractSemanticVersion(from version: String) -> String? {

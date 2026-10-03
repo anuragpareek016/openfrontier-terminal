@@ -2,9 +2,9 @@ import SwiftUI
 import Cocoa
 
 // For testing.
-struct ColorizedGhosttyIconView: View {
+struct ColorizedOpenFrontierIconView: View {
     var body: some View {
-        Image(nsImage: ColorizedGhosttyIcon(
+        Image(nsImage: ColorizedOpenFrontierIcon(
             screenColors: [.purple, .blue],
             ghostColor: .yellow,
             frame: .aluminum

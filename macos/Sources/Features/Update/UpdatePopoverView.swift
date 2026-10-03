@@ -62,7 +62,7 @@ private struct PermissionRequestView: View {
                 Text("Enable automatic updates?")
                     .font(.system(size: 13, weight: .semibold))
 
-                Text("Ghostty can automatically check for updates in the background.")
+                Text("OpenFrontier updates are installed from its local source build.")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

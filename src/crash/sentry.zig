@@ -294,7 +294,7 @@ pub const Transport = struct {
         // Build our final path and write to it.
         const path = try std.fs.path.join(alloc, &.{
             dir.path,
-            try std.fmt.allocPrint(alloc, "{s}.ghosttycrash", .{uuid.string()}),
+            try std.fmt.allocPrint(alloc, "{s}.openfrontiercrash", .{uuid.string()}),
         });
         const file = try std.fs.cwd().createFile(path, .{});
         defer file.close();

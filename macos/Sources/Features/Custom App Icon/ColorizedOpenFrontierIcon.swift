@@ -1,6 +1,6 @@
 import Cocoa
 
-struct ColorizedGhosttyIcon {
+struct ColorizedOpenFrontierIcon {
     /// The colors that make up the gradient of the screen.
     let screenColors: [NSColor]
 
@@ -56,7 +56,7 @@ struct ColorizedGhosttyIcon {
 
 // MARK: Codable
 
-extension ColorizedGhosttyIcon: Codable {
+extension ColorizedOpenFrontierIcon: Codable {
     private enum CodingKeys: String, CodingKey {
         case version
         case screenColors
@@ -75,7 +75,7 @@ extension ColorizedGhosttyIcon: Codable {
             throw DecodingError.dataCorrupted(
                 DecodingError.Context(
                     codingPath: decoder.codingPath,
-                    debugDescription: "Unsupported ColorizedGhosttyIcon version: \(version)"
+                    debugDescription: "Unsupported ColorizedOpenFrontierIcon version: \(version)"
                 )
             )
         }
@@ -106,7 +106,7 @@ extension ColorizedGhosttyIcon: Codable {
 
 // MARK: Equatable
 
-extension ColorizedGhosttyIcon: Equatable {
+extension ColorizedOpenFrontierIcon: Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.frame == rhs.frame &&
             lhs.screenColors.compactMap(\.hexString) == rhs.screenColors.compactMap(\.hexString) &&

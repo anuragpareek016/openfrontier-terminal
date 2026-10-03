@@ -3,10 +3,10 @@ import AppKit
 /// Handler for the `send mouse button` AppleScript command defined in `Ghostty.sdef`.
 ///
 /// Cocoa scripting instantiates this class because the command's `<cocoa>` element
-/// specifies `class="GhosttyScriptMouseButtonCommand"`. The runtime calls
+/// specifies `class="OpenFrontierScriptMouseButtonCommand"`. The runtime calls
 /// `performDefaultImplementation()` to execute the command.
 @MainActor
-@objc(GhosttyScriptMouseButtonCommand)
+@objc(OpenFrontierScriptMouseButtonCommand)
 final class ScriptMouseButtonCommand: NSScriptCommand {
     override func performDefaultImplementation() -> Any? {
         guard NSApp.validateScript(command: self) else { return nil }

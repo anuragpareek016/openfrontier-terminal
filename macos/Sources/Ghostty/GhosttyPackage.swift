@@ -13,10 +13,10 @@ extension ghostty_surface_t: @unchecked @retroactive Sendable {}
 
 extension Ghostty {
     // The user notification category identifier
-    static let userNotificationCategory = "com.mitchellh.ghostty.userNotification"
+    static let userNotificationCategory = "com.openfrontier.term.userNotification"
 
     // The user notification "Show" action
-    static let userNotificationActionShow = "com.mitchellh.ghostty.userNotification.Show"
+    static let userNotificationActionShow = "com.openfrontier.term.userNotification.Show"
 }
 
 // MARK: Build Info
@@ -331,121 +331,121 @@ extension Ghostty {
 
 extension Notification.Name {
     /// Configuration change. If the object is nil then it is app-wide. Otherwise its surface-specific.
-    static let ghosttyConfigDidChange = Notification.Name("com.mitchellh.ghostty.configDidChange")
+    static let ghosttyConfigDidChange = Notification.Name("com.openfrontier.term.configDidChange")
     static let GhosttyConfigChangeKey = ghosttyConfigDidChange.rawValue
 
     /// Color change. Object is the surface changing.
-    static let ghosttyColorDidChange = Notification.Name("com.mitchellh.ghostty.ghosttyColorDidChange")
+    static let ghosttyColorDidChange = Notification.Name("com.openfrontier.term.ghosttyColorDidChange")
     static let GhosttyColorChangeKey = ghosttyColorDidChange.rawValue
 
     /// Goto tab. Has tab index in the userinfo.
-    static let ghosttyMoveTab = Notification.Name("com.mitchellh.ghostty.moveTab")
+    static let ghosttyMoveTab = Notification.Name("com.openfrontier.term.moveTab")
     static let GhosttyMoveTabKey = ghosttyMoveTab.rawValue
 
     /// Close tab
-    static let ghosttyCloseTab = Notification.Name("com.mitchellh.ghostty.closeTab")
+    static let ghosttyCloseTab = Notification.Name("com.openfrontier.term.closeTab")
 
     /// Close other tabs
-    static let ghosttyCloseOtherTabs = Notification.Name("com.mitchellh.ghostty.closeOtherTabs")
+    static let ghosttyCloseOtherTabs = Notification.Name("com.openfrontier.term.closeOtherTabs")
 
     /// Close tabs to the right of the focused tab
-    static let ghosttyCloseTabsOnTheRight = Notification.Name("com.mitchellh.ghostty.closeTabsOnTheRight")
+    static let ghosttyCloseTabsOnTheRight = Notification.Name("com.openfrontier.term.closeTabsOnTheRight")
 
     /// Close window
-    static let ghosttyCloseWindow = Notification.Name("com.mitchellh.ghostty.closeWindow")
+    static let ghosttyCloseWindow = Notification.Name("com.openfrontier.term.closeWindow")
 
     /// Resize the window to a default size.
-    static let ghosttyResetWindowSize = Notification.Name("com.mitchellh.ghostty.resetWindowSize")
+    static let ghosttyResetWindowSize = Notification.Name("com.openfrontier.term.resetWindowSize")
 
     /// Ring the bell
-    static let ghosttyBellDidRing = Notification.Name("com.mitchellh.ghostty.ghosttyBellDidRing")
+    static let ghosttyBellDidRing = Notification.Name("com.openfrontier.term.ghosttyBellDidRing")
 
     /// Readonly mode changed
-    static let ghosttyDidChangeReadonly = Notification.Name("com.mitchellh.ghostty.didChangeReadonly")
+    static let ghosttyDidChangeReadonly = Notification.Name("com.openfrontier.term.didChangeReadonly")
     static let ReadonlyKey = ghosttyDidChangeReadonly.rawValue + ".readonly"
-    static let ghosttyCommandPaletteDidToggle = Notification.Name("com.mitchellh.ghostty.commandPaletteDidToggle")
+    static let ghosttyCommandPaletteDidToggle = Notification.Name("com.openfrontier.term.commandPaletteDidToggle")
 
     /// Toggle maximize of current window
-    static let ghosttyMaximizeDidToggle = Notification.Name("com.mitchellh.ghostty.maximizeDidToggle")
+    static let ghosttyMaximizeDidToggle = Notification.Name("com.openfrontier.term.maximizeDidToggle")
 
     /// Notification sent when scrollbar updates
-    static let ghosttyDidUpdateScrollbar = Notification.Name("com.mitchellh.ghostty.didUpdateScrollbar")
+    static let ghosttyDidUpdateScrollbar = Notification.Name("com.openfrontier.term.didUpdateScrollbar")
     static let ScrollbarKey = ghosttyDidUpdateScrollbar.rawValue + ".scrollbar"
 
     /// Focus the search field
-    static let ghosttySearchFocus = Notification.Name("com.mitchellh.ghostty.searchFocus")
+    static let ghosttySearchFocus = Notification.Name("com.openfrontier.term.searchFocus")
 }
 
 // NOTE: I am moving all of these to Notification.Name extensions over time. This
 // namespace was the old namespace.
 extension Ghostty.Notification {
     /// Used to pass a configuration along when creating a new tab/window/split.
-    static let NewSurfaceConfigKey = "com.mitchellh.ghostty.newSurfaceConfig"
+    static let NewSurfaceConfigKey = "com.openfrontier.term.newSurfaceConfig"
 
     /// Posted when a new split is requested. The sending object will be the surface that had focus. The
     /// userdata has one key "direction" with the direction to split to.
-    static let ghosttyNewSplit = Notification.Name("com.mitchellh.ghostty.newSplit")
+    static let ghosttyNewSplit = Notification.Name("com.openfrontier.term.newSplit")
 
     /// Close the calling surface.
-    static let ghosttyCloseSurface = Notification.Name("com.mitchellh.ghostty.closeSurface")
+    static let ghosttyCloseSurface = Notification.Name("com.openfrontier.term.closeSurface")
 
     /// Focus previous/next split. Has a SplitFocusDirection in the userinfo.
-    static let ghosttyFocusSplit = Notification.Name("com.mitchellh.ghostty.focusSplit")
+    static let ghosttyFocusSplit = Notification.Name("com.openfrontier.term.focusSplit")
     static let SplitDirectionKey = ghosttyFocusSplit.rawValue
 
     /// Goto tab. Has tab index in the userinfo.
-    static let ghosttyGotoTab = Notification.Name("com.mitchellh.ghostty.gotoTab")
+    static let ghosttyGotoTab = Notification.Name("com.openfrontier.term.gotoTab")
     static let GotoTabKey = ghosttyGotoTab.rawValue
 
     /// New tab. Has base surface config requested in userinfo.
-    static let ghosttyNewTab = Notification.Name("com.mitchellh.ghostty.newTab")
+    static let ghosttyNewTab = Notification.Name("com.openfrontier.term.newTab")
 
     /// New window. Has base surface config requested in userinfo.
-    static let ghosttyNewWindow = Notification.Name("com.mitchellh.ghostty.newWindow")
+    static let ghosttyNewWindow = Notification.Name("com.openfrontier.term.newWindow")
 
     /// Present terminal. Bring the surface's window to focus without activating the app.
-    static let ghosttyPresentTerminal = Notification.Name("com.mitchellh.ghostty.presentTerminal")
+    static let ghosttyPresentTerminal = Notification.Name("com.openfrontier.term.presentTerminal")
 
     /// Toggle fullscreen of current window
-    static let ghosttyToggleFullscreen = Notification.Name("com.mitchellh.ghostty.toggleFullscreen")
+    static let ghosttyToggleFullscreen = Notification.Name("com.openfrontier.term.toggleFullscreen")
     static let FullscreenModeKey = ghosttyToggleFullscreen.rawValue
 
     /// Notification sent to toggle split maximize/unmaximize.
-    static let didToggleSplitZoom = Notification.Name("com.mitchellh.ghostty.didToggleSplitZoom")
+    static let didToggleSplitZoom = Notification.Name("com.openfrontier.term.didToggleSplitZoom")
 
     /// Notification
-    static let didReceiveInitialWindowFrame = Notification.Name("com.mitchellh.ghostty.didReceiveInitialWindowFrame")
-    static let FrameKey = "com.mitchellh.ghostty.frame"
+    static let didReceiveInitialWindowFrame = Notification.Name("com.openfrontier.term.didReceiveInitialWindowFrame")
+    static let FrameKey = "com.openfrontier.term.frame"
 
     /// Notification to render the inspector for a surface
-    static let inspectorNeedsDisplay = Notification.Name("com.mitchellh.ghostty.inspectorNeedsDisplay")
+    static let inspectorNeedsDisplay = Notification.Name("com.openfrontier.term.inspectorNeedsDisplay")
 
     /// Notification to show/hide the inspector
-    static let didControlInspector = Notification.Name("com.mitchellh.ghostty.didControlInspector")
+    static let didControlInspector = Notification.Name("com.openfrontier.term.didControlInspector")
 
-    static let confirmClipboard = Notification.Name("com.mitchellh.ghostty.confirmClipboard")
+    static let confirmClipboard = Notification.Name("com.openfrontier.term.confirmClipboard")
     static let ConfirmClipboardStrKey = confirmClipboard.rawValue + ".str"
     static let ConfirmClipboardStateKey = confirmClipboard.rawValue + ".state"
     static let ConfirmClipboardRequestKey = confirmClipboard.rawValue + ".request"
 
     /// Notification sent to the active split view to resize the split.
-    static let didResizeSplit = Notification.Name("com.mitchellh.ghostty.didResizeSplit")
+    static let didResizeSplit = Notification.Name("com.openfrontier.term.didResizeSplit")
     static let ResizeSplitDirectionKey = didResizeSplit.rawValue + ".direction"
     static let ResizeSplitAmountKey = didResizeSplit.rawValue + ".amount"
 
     /// Notification sent to the split root to equalize split sizes
-    static let didEqualizeSplits = Notification.Name("com.mitchellh.ghostty.didEqualizeSplits")
+    static let didEqualizeSplits = Notification.Name("com.openfrontier.term.didEqualizeSplits")
 
     /// Notification that renderer health changed
-    static let didUpdateRendererHealth = Notification.Name("com.mitchellh.ghostty.didUpdateRendererHealth")
+    static let didUpdateRendererHealth = Notification.Name("com.openfrontier.term.didUpdateRendererHealth")
 
     /// Notifications related to key sequences
-    static let didContinueKeySequence = Notification.Name("com.mitchellh.ghostty.didContinueKeySequence")
-    static let didEndKeySequence = Notification.Name("com.mitchellh.ghostty.didEndKeySequence")
+    static let didContinueKeySequence = Notification.Name("com.openfrontier.term.didContinueKeySequence")
+    static let didEndKeySequence = Notification.Name("com.openfrontier.term.didEndKeySequence")
     static let KeySequenceKey = didContinueKeySequence.rawValue + ".key"
 
     /// Notifications related to key tables
-    static let didChangeKeyTable = Notification.Name("com.mitchellh.ghostty.didChangeKeyTable")
+    static let didChangeKeyTable = Notification.Name("com.openfrontier.term.didChangeKeyTable")
     static let KeyTableKey = didChangeKeyTable.rawValue + ".action"
 }
 

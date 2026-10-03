@@ -1,5 +1,5 @@
 import Testing
-@testable import Ghostty
+@testable import OpenFrontier
 @testable import GhosttyKit
 import SwiftUI
 

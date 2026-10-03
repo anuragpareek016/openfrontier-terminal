@@ -3,12 +3,9 @@ import SwiftUI
 struct AboutView: View {
     @Environment(\.openURL) var openURL
 
-    private let githubURL = URL(string: "https://github.com/ghostty-org/ghostty")
-    private let docsURL = URL(string: "https://ghostty.org/docs")
-
     /// Read the commit from the bundle.
     private var build: String? { Bundle.main.infoDictionary?["CFBundleVersion"] as? String }
-    private var commit: String? { Bundle.main.infoDictionary?["GhosttyCommit"] as? String }
+    private var commit: String? { Bundle.main.infoDictionary?["OpenFrontierCommit"] as? String }
     private var version: String? { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String }
     private var copyright: String? { Bundle.main.infoDictionary?["NSHumanReadableCopyright"] as? String }
 
@@ -47,10 +44,10 @@ struct AboutView: View {
 
             VStack(alignment: .center, spacing: 32) {
                 VStack(alignment: .center, spacing: 8) {
-                    Text("Ghostty")
+                    Text("OpenFrontier")
                         .bold()
                         .font(.title)
-                    Text("Fast, native, feature-rich terminal \nemulator pushing modern features.")
+                    Text("A personal, fast, native terminal \nbuilt for OpenFrontier Labs.")
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                         .font(.caption)
@@ -66,25 +63,11 @@ struct AboutView: View {
                     if let build {
                         PropertyRow(label: "Build", text: build)
                     }
-                    if let commit, commit != "",
-                       let url = githubURL?.appendingPathComponent("/commits/\(commit)") {
-                        PropertyRow(label: "Commit", text: commit, url: url)
+                    if let commit, commit != "" {
+                        PropertyRow(label: "Commit", text: commit)
                     }
                 }
                 .frame(maxWidth: .infinity)
-
-                HStack(spacing: 8) {
-                    if let url = docsURL {
-                        Button("Docs") {
-                            openURL(url)
-                        }
-                    }
-                    if let url = githubURL {
-                        Button("GitHub") {
-                            openURL(url)
-                        }
-                    }
-                }
 
                 if let copy = self.copyright {
                     Text(copy)

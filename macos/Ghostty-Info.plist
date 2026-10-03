@@ -46,10 +46,14 @@
 			</array>
 		</dict>
 	</array>
-	<key>GhosttyBuild</key>
+	<key>OpenFrontierBuild</key>
 	<string></string>
-	<key>GhosttyCommit</key>
+	<key>OpenFrontierCommit</key>
 	<string></string>
+	<key>CFBundleIconFile</key>
+	<string>OpenFrontier</string>
+	<key>CFBundleIconName</key>
+	<string>OpenFrontier</string>
 	<key>LSEnvironment</key>
 	<dict>
 		<key>GHOSTTY_MAC_LAUNCH_SOURCE</key>
@@ -62,7 +66,7 @@
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>OSAScriptingDefinition</key>
-	<string>Ghostty.sdef</string>
+	<string>OpenFrontier.sdef</string>
 	<key>NSServices</key>
 	<array>
 		<dict>
@@ -106,15 +110,13 @@
 	</array>
 	<key>SUEnableAutomaticChecks</key>
 	<false/>
-	<key>SUPublicEDKey</key>
-	<string>wsNcGf5hirwtdXMVnYoxRIX/SqZQLMOsYlD3q3imeok=</string>
 	<key>UTExportedTypeDeclarations</key>
 	<array>
 		<dict>
 			<key>UTTypeIdentifier</key>
-			<string>com.mitchellh.ghosttySurfaceId</string>
+			<string>com.openfrontier.surface-id</string>
 			<key>UTTypeDescription</key>
-			<string>Ghostty Surface Identifier</string>
+			<string>OpenFrontier Surface Identifier</string>
 			<key>UTTypeConformsTo</key>
 			<array>
 				<string>public.data</string>

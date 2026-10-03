@@ -7,7 +7,7 @@
 
 import Testing
 import AppKit
-@testable import Ghostty
+@testable import OpenFrontier
 
 struct NSPasteboardTypeExtensionTests {
     /// Test text/plain MIME type converts to .string

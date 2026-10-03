@@ -15,7 +15,7 @@ import AppKit
 /// We keep only a weak reference to the underlying `SurfaceView` so this
 /// wrapper never extends the terminal's lifetime.
 @MainActor
-@objc(GhosttyScriptTerminal)
+@objc(OpenFrontierScriptTerminal)
 final class ScriptTerminal: NSObject {
     /// Weak reference to the underlying surface. Package-visible so that
     /// other AppleScript command handlers (e.g. `ScriptSplitCommand`) can

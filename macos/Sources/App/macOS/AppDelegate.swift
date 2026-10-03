@@ -412,9 +412,9 @@ class AppDelegate: NSObject,
 
         // We have some visible window. Show an app-wide modal to confirm quitting.
         let alert = NSAlert()
-        alert.messageText = "Quit Ghostty?"
+        alert.messageText = "Quit OpenFrontier?"
         alert.informativeText = "All terminal sessions will be terminated."
-        alert.addButton(withTitle: "Close Ghostty")
+        alert.addButton(withTitle: "Close OpenFrontier")
         alert.addButton(withTitle: "Cancel")
         alert.alertStyle = .warning
         switch alert.runModal() {
@@ -505,7 +505,7 @@ class AppDelegate: NSObject,
             // may want to show this as a sheet on the focused window (especially if we're
             // opening a tab). I'm not sure.
             let alert = NSAlert()
-            alert.messageText = "Allow Ghostty to execute \"\(filename)\"?"
+            alert.messageText = "Allow OpenFrontier to execute \"\(filename)\"?"
             alert.addButton(withTitle: "Allow")
             alert.addButton(withTitle: "Cancel")
             alert.alertStyle = .warning
@@ -843,7 +843,6 @@ class AppDelegate: NSObject,
     private func updateAppIcon(from config: Ghostty.Config) {
         // Since this is called after `DockTilePlugin` has been running,
         // clean it up here to trigger a correct update of the current config.
-        UserDefaults.ghostty.removeObject(forKey: "CustomGhosttyIcon")
         DispatchQueue.global().async {
             UserDefaults.ghostty.appIcon = AppIcon(config: config)
             DistributedNotificationCenter.default()
@@ -974,8 +973,11 @@ class AppDelegate: NSObject,
     }
 
     @IBAction func showHelp(_ sender: Any) {
-        guard let url = URL(string: "https://ghostty.org/docs") else { return }
-        NSWorkspace.shared.open(url)
+        let alert = NSAlert()
+        alert.messageText = "OpenFrontier Help"
+        alert.informativeText = "Configuration: ~/.config/openfrontier/config\n\nUse OpenFrontier +help in a shell to list command-line actions."
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 
     @IBAction func toggleSecureInput(_ sender: Any) {

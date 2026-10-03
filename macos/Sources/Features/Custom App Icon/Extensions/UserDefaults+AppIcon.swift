@@ -1,18 +1,11 @@
 import AppKit
 
 extension UserDefaults {
-    private static let customIconKeyOld = "CustomGhosttyIcon"
-    private static let customIconKeyNew = "CustomGhosttyIcon2"
+    private static let customIconKey = "CustomOpenFrontierIcon"
 
     var appIcon: AppIcon? {
         get {
-            // Always remove our old pre-docktileplugin values.
-            defer {
-                removeObject(forKey: Self.customIconKeyOld)
-            }
-
-            // Check if we have the new key for our dock tile plugin format.
-            guard let data = data(forKey: Self.customIconKeyNew) else {
+            guard let data = data(forKey: Self.customIconKey) else {
                 return nil
             }
             return try? JSONDecoder().decode(AppIcon.self, from: data)
@@ -23,7 +16,7 @@ extension UserDefaults {
                 return
             }
 
-            set(newData, forKey: Self.customIconKeyNew)
+            set(newData, forKey: Self.customIconKey)
         }
     }
 }

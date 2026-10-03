@@ -11,7 +11,7 @@ const log = std.log.scoped(.config);
 pub fn defaultXdgPath(alloc: Allocator) ![]const u8 {
     return try internal_os.xdg.config(
         alloc,
-        .{ .subdir = "ghostty/config.ghostty" },
+        .{ .subdir = "openfrontier/config" },
     );
 }
 
@@ -20,7 +20,7 @@ pub fn defaultXdgPath(alloc: Allocator) ![]const u8 {
 pub fn legacyDefaultXdgPath(alloc: Allocator) ![]const u8 {
     return try internal_os.xdg.config(
         alloc,
-        .{ .subdir = "ghostty/config" },
+        .{ .subdir = "openfrontier/config.ghostty" },
     );
 }
 
@@ -52,13 +52,13 @@ pub fn preferredXdgPath(alloc: Allocator) ![]const u8 {
 /// Default path for the macOS Application Support configuration file.
 /// Returned value must be freed by the caller.
 pub fn defaultAppSupportPath(alloc: Allocator) ![]const u8 {
-    return try internal_os.macos.appSupportDir(alloc, "config.ghostty");
+    return try internal_os.macos.appSupportDir(alloc, "config");
 }
 
 /// Ghostty <1.3.0 default path for the macOS Application Support
 /// configuration file. Returned value must be freed by the caller.
 pub fn legacyDefaultAppSupportPath(alloc: Allocator) ![]const u8 {
-    return try internal_os.macos.appSupportDir(alloc, "config");
+    return try internal_os.macos.appSupportDir(alloc, "config.ghostty");
 }
 
 /// Preferred default path for the macOS Application Support configuration file.
