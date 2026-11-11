@@ -67,7 +67,7 @@ patch_binary_cstring "Ghostty app delegate is unavailable." "OpenFrontier is una
 patch_binary_cstring "Ghostty failed to initialize! If you're executing Ghostty from the command line" "OpenFrontier failed to initialize." "$macos/OpenFrontierCore"
 patch_binary_cstring "Ghostty failed to launch the requested command:" "OpenFrontier could not launch command:" "$macos/OpenFrontierCore"
 patch_binary_cstring "Run the Ghostty terminal emulator or a specific helper action." "Run OpenFrontier or a helper action." "$macos/OpenFrontierCore"
-patch_binary_cstring "If no `+action` is specified, run the Ghostty terminal emulator." "If no `+action` is specified, run OpenFrontier." "$macos/OpenFrontierCore"
+patch_binary_cstring "If no \`+action\` is specified, run the Ghostty terminal emulator." "If no \`+action\` is specified, run OpenFrontier." "$macos/OpenFrontierCore"
 
 plugin="$contents/PlugIns/DockTilePlugin.plugin"
 if [ -x "$plugin/Contents/MacOS/DockTilePlugin" ]; then
