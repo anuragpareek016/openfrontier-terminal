@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Forwarder to unified shad paper configurator
+exec "$HOME/.local/bin/shad" paper config "$@"

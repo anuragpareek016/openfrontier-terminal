@@ -1,0 +1,1017 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# OpenFrontier Multi-Shader Manager (shad)
+# Switch, stack, and configure GLSL terminal shaders & E-Paper textures on the fly
+# Supports simultaneous composition (e.g. Physical E-Paper + Blaze Cursor Trail)
+# ==============================================================================
+
+set -eo pipefail
+
+CONFIG_FILE="$HOME/.config/openfrontier/config"
+SHADERS_DIR="$HOME/.config/openfrontier/shaders"
+
+# ANSI Color definitions
+if [[ -t 1 ]]; then
+    BOLD="\033[1m"
+    GREEN="\033[1;32m"
+    YELLOW="\033[1;33m"
+    CYAN="\033[1;36m"
+    BLUE="\033[1;34m"
+    MAGENTA="\033[1;35m"
+    DIM="\033[2m"
+    RED="\033[1;31m"
+    WHITE="\033[1;37m"
+    RESET="\033[0m"
+else
+    BOLD=""
+    GREEN=""
+    YELLOW=""
+    CYAN=""
+    BLUE=""
+    MAGENTA=""
+    DIM=""
+    RED=""
+    WHITE=""
+    RESET=""
+fi
+
+# Ensure shaders directory exists
+if [[ ! -d "$SHADERS_DIR" ]]; then
+    echo -e "${RED}Error: Shaders directory not found at $SHADERS_DIR${RESET}" >&2
+    exit 1
+fi
+
+# Curated shader list: key | file | description
+SHADERS=(
+    "trail:trail.glsl:◆  Orange Blaze Cursor Trail [Default]"
+    "lightning:lightning.glsl:⌁  Electric Cursor Lightning"
+    "bloom:bloom.glsl:✦  Neon Cyberpunk Glow"
+    "crt:crt.glsl:▣  Retro Curved CRT Monitor"
+    "matrix-rain:inside-the-matrix.glsl:☷  Falling Matrix Digital Code"
+    "matrix-hallway:matrix-hallway.glsl:⌖  3D Matrix Perspective Tunnel"
+    "starfield:starfield.glsl:✧  Hyperspace Warp Starfield"
+    "glitchy:glitchy.glsl:⌿  Cyber Glitch & Chromatic Split"
+    "retro-terminal:retro-terminal.glsl:▥  Green Phosphor Raster CRT"
+    "vhs:vhs.glsl:◫  Retro VHS Tape & Noise"
+    "paper:paper-mid.glsl:📜 Physical E-Paper & Organic Cellulose Pulp"
+)
+
+# Extract list of currently active shader files from CONFIG_FILE
+get_active_shader_files() {
+    if [[ ! -f "$CONFIG_FILE" ]]; then
+        return
+    fi
+    /usr/bin/python3 -c '
+import os, sys
+config_file = os.path.expanduser("~/.config/openfrontier/config")
+if not os.path.exists(config_file):
+    sys.exit(0)
+with open(config_file, "r") as f:
+    for line in f:
+        s = line.strip()
+        if (s.startswith("custom-shader =") or s.startswith("custom-shader=")) and not s.startswith("#"):
+            val = s.split("=", 1)[1].strip().strip("\"'\''")
+            base = os.path.basename(val)
+            if base and base.lower() not in ("off", "none", ""):
+                print(base)
+' 2>/dev/null || true
+}
+
+# Map a filename to its canonical key
+file_to_key() {
+    local base
+    base=$(basename "$1" .glsl)
+    case "$base" in
+        "cursor_blaze"|"trail") echo "trail" ;;
+        "cursor_lightning"|"lightning") echo "lightning" ;;
+        "inside-the-matrix"|"matrix-rain") echo "matrix-rain" ;;
+        "matrix-hallway") echo "matrix-hallway" ;;
+        "paper"|"paper-grain"|"paper-low"|"paper-mid"|"paper-high"|"paper-flat"|"paper-lamp"|"paper-heavy"|"paper-subtle"|"paper-librera") echo "paper" ;;
+        *) echo "$base" ;;
+    esac
+}
+
+# Return the active paper shader filename if any is active, or empty string
+get_active_paper_file() {
+    local files
+    files=$(get_active_shader_files)
+    while IFS= read -r f; do
+        if [[ -n "$f" && "$f" == paper*.glsl ]]; then
+            echo "$f"
+            return
+        fi
+    done <<< "$files"
+    echo ""
+}
+
+# Return human-readable active paper preset
+get_active_paper_preset() {
+    local file
+    file=$(get_active_paper_file)
+    if [[ -z "$file" ]]; then
+        echo "none (disabled)"
+        return
+    fi
+    local base
+    base=$(basename "$file" .glsl)
+    case "$base" in
+        "paper-low") echo "1 (Low Paper / Normal)" ;;
+        "paper-mid"|"paper-grain"|"paper") echo "2 (Mid Paper / More Paper)" ;;
+        "paper-high"|"paper-heavy") echo "3 (High Paper / Max Tactile)" ;;
+        "paper-flat") echo "4 (Kindle Matte Flat)" ;;
+        "paper-lamp") echo "5 (Library Lamp Spotlight)" ;;
+        "paper-librera") echo "6 (Librera FD Vintage Book)" ;;
+        *) echo "$base" ;;
+    esac
+}
+
+# Check if a shader key or file is currently active (0 = yes, 1 = no)
+is_shader_active() {
+    local query="$1"
+    local target_key
+    target_key=$(file_to_key "$query")
+    local active_files
+    active_files=$(get_active_shader_files)
+    while IFS= read -r f; do
+        if [[ -n "$f" ]]; then
+            local k
+            k=$(file_to_key "$f")
+            if [[ "$k" == "$target_key" || "$f" == "$query" || "$f" == "$query.glsl" ]]; then
+                return 0
+            fi
+        fi
+    done <<< "$active_files"
+    return 1
+}
+
+# Reload OpenFrontier terminal instances cleanly via macOS System Events
+reload_terminal() {
+    osascript -e 'tell application "System Events"
+        if exists process "OpenFrontierCore" then
+            tell process "OpenFrontierCore" to click menu item "Reload Configuration" of menu 1 of menu bar item "OpenFrontier" of menu bar 1
+        else if exists process "OpenFrontier" then
+            tell process "OpenFrontier" to click menu item "Reload Configuration" of menu 1 of menu bar item "OpenFrontier" of menu bar 1
+        end if
+    end tell' >/dev/null 2>&1 || true
+    echo -e "${DIM}› OpenFrontier configuration reloaded.${RESET}"
+}
+
+# Get description for a shader key
+describe_shader() {
+    local key="$1"
+    if [[ "$key" == "paper" ]]; then
+        local p_active
+        p_active=$(get_active_paper_file)
+        if [[ -n "$p_active" ]]; then
+            local preset
+            preset=$(get_active_paper_preset)
+            echo "📜 Physical E-Paper [${preset}]"
+            return
+        fi
+    fi
+    for item in "${SHADERS[@]}"; do
+        IFS=":" read -r k f d <<< "$item"
+        if [[ "$k" == "$key" ]]; then
+            echo "$d"
+            return
+        fi
+    done
+    echo "Custom Shader ($key)"
+}
+
+# Save active shader files list to OpenFrontier config
+# Deduplicates, orders paper first, screen second, cursor last, and updates cleanly
+save_active_shaders() {
+    local files=("$@")
+    mkdir -p "$(dirname "$CONFIG_FILE")"
+    touch "$CONFIG_FILE"
+
+    /usr/bin/python3 -c '
+import os, sys
+
+config_file = os.path.expanduser("~/.config/openfrontier/config")
+raw_shaders = sys.argv[1:]
+
+def shader_priority(name):
+    low = name.lower()
+    if low.startswith("paper"):
+        return (1, low)
+    elif any(k in low for k in ["crt", "retro", "vhs"]):
+        return (2, low)
+    elif any(k in low for k in ["matrix", "starfield", "glitch"]):
+        return (3, low)
+    elif any(k in low for k in ["bloom", "trail", "blaze", "lightning", "zap"]):
+        return (4, low)
+    else:
+        return (5, low)
+
+seen = set()
+unique_shaders = []
+paper_shader = None
+
+for s in raw_shaders:
+    s = s.strip()
+    if not s or s.lower() in ("off", "none"):
+        continue
+    if s.lower().startswith("paper"):
+        paper_shader = s
+    elif s not in seen:
+        seen.add(s)
+        unique_shaders.append(s)
+
+final_shaders = []
+if paper_shader:
+    final_shaders.append(paper_shader)
+final_shaders.extend(unique_shaders)
+final_shaders.sort(key=shader_priority)
+
+if not os.path.exists(config_file):
+    lines = []
+else:
+    with open(config_file, "r") as f:
+        lines = f.readlines()
+
+new_lines = []
+found_pos = -1
+
+for line in lines:
+    s = line.strip()
+    is_shader_line = (
+        s.startswith("custom-shader =") or 
+        s.startswith("custom-shader=") or 
+        s.startswith("# custom-shader =") or 
+        s.startswith("# custom-shader=")
+    )
+    if is_shader_line:
+        if found_pos == -1:
+            found_pos = len(new_lines)
+        continue
+    new_lines.append(line)
+
+shader_block = []
+if final_shaders:
+    for s in final_shaders:
+        shader_block.append(f"custom-shader = shaders/{s}\n")
+    if not any("custom-shader-animation" in l for l in new_lines):
+        shader_block.append("custom-shader-animation = true\n")
+else:
+    shader_block.append("# custom-shader = off\n")
+
+if found_pos != -1:
+    new_lines[found_pos:found_pos] = shader_block
+else:
+    new_lines.append("\n# Custom Shaders (Controlled by '\''shad'\'' CLI)\n")
+    new_lines.extend(shader_block)
+
+with open(config_file, "w") as f:
+    f.writelines(new_lines)
+' "${files[@]}"
+
+    reload_terminal
+}
+
+# Return compact summary string of currently active shaders
+format_active_summary() {
+    local active_files=()
+    while IFS= read -r line; do
+        [[ -n "$line" ]] && active_files+=("$line")
+    done < <(get_active_shader_files)
+
+    if [[ ${#active_files[@]} -eq 0 ]]; then
+        echo -e "${YELLOW}None (Disabled)${RESET}"
+        return
+    fi
+
+    local parts=()
+    for f in "${active_files[@]}"; do
+        local k
+        k=$(file_to_key "$f")
+        if [[ "$k" == "paper" ]]; then
+            local pt
+            pt=$(get_active_paper_preset)
+            parts+=("${GREEN}${BOLD}paper${RESET} ${DIM}(${pt})${RESET}")
+        else
+            parts+=("${GREEN}${BOLD}$k${RESET}")
+        fi
+    done
+
+    local IFS=", "
+    echo -e "${parts[*]}"
+}
+
+# Enable one shader by key or filename, preserving all other active shaders
+enable_shader() {
+    local target="$1"
+    local lower
+    lower=$(echo "$target" | tr '[:upper:]' '[:lower:]')
+
+    # Resolve filename
+    local file_to_add=""
+    local key_to_add=""
+
+    case "$lower" in
+        "trail"|"cursor_blaze"|"blaze"|"default")
+            key_to_add="trail"
+            file_to_add="trail.glsl"
+            ;;
+        "lightning"|"cursor_lightning"|"zap")
+            key_to_add="lightning"
+            file_to_add="lightning.glsl"
+            ;;
+        "bloom"|"glow"|"neon")
+            key_to_add="bloom"
+            file_to_add="bloom.glsl"
+            ;;
+        "crt")
+            key_to_add="crt"
+            file_to_add="crt.glsl"
+            ;;
+        "matrix"|"matrix-rain"|"inside-the-matrix"|"code")
+            key_to_add="matrix-rain"
+            file_to_add="inside-the-matrix.glsl"
+            ;;
+        "hallway"|"matrix-hallway"|"tunnel")
+            key_to_add="matrix-hallway"
+            file_to_add="matrix-hallway.glsl"
+            ;;
+        "starfield"|"stars"|"warp"|"hyperspace")
+            key_to_add="starfield"
+            file_to_add="starfield.glsl"
+            ;;
+        "glitch"|"glitchy"|"cyber")
+            key_to_add="glitchy"
+            file_to_add="glitchy.glsl"
+            ;;
+        "retro"|"retro-terminal"|"phosphor"|"amber")
+            key_to_add="retro-terminal"
+            file_to_add="retro-terminal.glsl"
+            ;;
+        "vhs"|"tape")
+            key_to_add="vhs"
+            file_to_add="vhs.glsl"
+            ;;
+        "paper"|"paper-grain"|"grain"|"e-paper")
+            key_to_add="paper"
+            local cur_p
+            cur_p=$(get_active_paper_file)
+            if [[ -n "$cur_p" ]]; then
+                file_to_add="$cur_p"
+            else
+                file_to_add="paper-mid.glsl"
+            fi
+            ;;
+        paper-*.glsl|paper-*)
+            key_to_add="paper"
+            if [[ "$lower" == *.glsl ]]; then
+                file_to_add="$lower"
+            else
+                file_to_add="$lower.glsl"
+            fi
+            ;;
+        *)
+            # Match in SHADERS array
+            for item in "${SHADERS[@]}"; do
+                IFS=":" read -r k f d <<< "$item"
+                if [[ "$k" == "$lower" || "$f" == "$lower" || "$f" == "$lower.glsl" ]]; then
+                    key_to_add="$k"
+                    file_to_add="$f"
+                    break
+                fi
+            done
+            ;;
+    esac
+
+    if [[ -z "$file_to_add" ]]; then
+        echo -e "${RED}Error: Unknown shader '$target'. Run 'shad list' to view available shaders.${RESET}" >&2
+        return 1
+    fi
+
+    # Read current active files
+    local active_files=()
+    while IFS= read -r line; do
+        [[ -n "$line" ]] && active_files+=("$line")
+    done < <(get_active_shader_files)
+
+    # Check if already active
+    local already_active=false
+    for f in "${active_files[@]}"; do
+        if [[ "$f" == "$file_to_add" ]]; then
+            already_active=true
+            break
+        elif [[ "$key_to_add" == "paper" && "$f" == paper*.glsl ]]; then
+            if [[ "$f" == "$file_to_add" ]]; then
+                already_active=true
+                break
+            fi
+        fi
+    done
+
+    if [[ "$already_active" == true ]]; then
+        echo -e "${YELLOW}● Shader '${BOLD}$key_to_add${RESET}${YELLOW}' is already active.${RESET}"
+        echo -e "  Active shaders: $(format_active_summary)"
+        return 0
+    fi
+
+    # If it's paper, replace any existing paper file
+    local new_list=()
+    for f in "${active_files[@]}"; do
+        if [[ "$key_to_add" == "paper" && "$f" == paper*.glsl ]]; then
+            continue
+        fi
+        new_list+=("$f")
+    done
+    new_list+=("$file_to_add")
+
+    save_active_shaders "${new_list[@]}"
+
+    local desc
+    desc=$(describe_shader "$key_to_add")
+    echo -e "${GREEN}● Activated shader: ${BOLD}$key_to_add${RESET} (${desc})"
+    echo -e "  Active shaders: $(format_active_summary)"
+}
+
+# Disable one shader by key or filename, preserving all other active shaders
+disable_shader() {
+    local target="$1"
+    local lower
+    lower=$(echo "$target" | tr '[:upper:]' '[:lower:]')
+
+    local key_to_remove
+    key_to_remove=$(file_to_key "$lower")
+
+    local active_files=()
+    while IFS= read -r line; do
+        [[ -n "$line" ]] && active_files+=("$line")
+    done < <(get_active_shader_files)
+
+    if [[ ${#active_files[@]} -eq 0 ]]; then
+        echo -e "${YELLOW}No shaders are currently active.${RESET}"
+        return 0
+    fi
+
+    local new_list=()
+    local removed=false
+
+    for f in "${active_files[@]}"; do
+        local k
+        k=$(file_to_key "$f")
+        if [[ "$k" == "$key_to_remove" || "$f" == "$lower" || "$f" == "$lower.glsl" ]]; then
+            removed=true
+            continue
+        fi
+        new_list+=("$f")
+    done
+
+    if [[ "$removed" == false ]]; then
+        echo -e "${YELLOW}Shader '${BOLD}$target${RESET}${YELLOW}' was not active.${RESET}"
+        echo -e "  Active shaders: $(format_active_summary)"
+        return 0
+    fi
+
+    save_active_shaders "${new_list[@]}"
+
+    echo -e "${YELLOW}○ Disabled shader: ${BOLD}$key_to_remove${RESET}"
+    echo -e "  Active shaders: $(format_active_summary)"
+}
+
+# Toggle one shader on or off, preserving all other active shaders
+toggle_shader() {
+    local target="$1"
+    if is_shader_active "$target"; then
+        disable_shader "$target"
+    else
+        enable_shader "$target"
+    fi
+}
+
+# Disable all custom shaders cleanly
+disable_all_shaders() {
+    save_active_shaders "off"
+    echo -e "${YELLOW}• All custom shaders disabled.${RESET}"
+}
+
+# Apply ONLY one shader, disabling all other active shaders
+only_shader() {
+    local target="$1"
+    local lower
+    lower=$(echo "$target" | tr '[:upper:]' '[:lower:]')
+
+    # Resolve filename
+    local file=""
+    for item in "${SHADERS[@]}"; do
+        IFS=":" read -r k f d <<< "$item"
+        if [[ "$k" == "$lower" || "$f" == "$lower" || "$f" == "$lower.glsl" ]]; then
+            file="$f"
+            break
+        fi
+    done
+
+    if [[ -z "$file" ]]; then
+        case "$lower" in
+            "paper"|"paper-grain") file="paper-mid.glsl" ;;
+            paper-*.glsl) file="$lower" ;;
+            paper-*) file="$lower.glsl" ;;
+            *)
+                echo -e "${RED}Error: Unknown shader '$target'.${RESET}" >&2
+                return 1
+                ;;
+        esac
+    fi
+
+    save_active_shaders "$file"
+    local k
+    k=$(file_to_key "$file")
+    local d
+    d=$(describe_shader "$k")
+    echo -e "${GREEN}● Activated ONLY shader: ${BOLD}$k${RESET} (${d})"
+    echo -e "  Active shaders: $(format_active_summary)"
+}
+
+# Apply a paper preset directly, preserving all other active shaders
+set_paper_tier() {
+    local tier="$1"
+    local paper_file=""
+    local tier_desc=""
+
+    case "$tier" in
+        "1"|"low"|"normal")
+            paper_file="paper-low.glsl"
+            tier_desc="Low Paper (Normal Daily Reading - Subtle grain, zero eye strain)"
+            ;;
+        "2"|"mid"|"more"|"paper")
+            paper_file="paper-mid.glsl"
+            tier_desc="Mid Paper (More Paper - Rich cellulose pulp & organic cotton fibers)"
+            ;;
+        "3"|"high"|"max"|"craft"|"washi")
+            paper_file="paper-high.glsl"
+            tier_desc="High Paper (Max Craft - Heavy pressed washi & ink diffusion)"
+            ;;
+        "4"|"flat"|"kindle")
+            paper_file="paper-flat.glsl"
+            tier_desc="Kindle Matte Flat (Pure anti-glare e-ink)"
+            ;;
+        "5"|"lamp"|"golden")
+            paper_file="paper-lamp.glsl"
+            tier_desc="Library Reading Lamp (Ambient center spotlight + antique border)"
+            ;;
+        "0"|"off"|"none"|"disable")
+            paper_file="off"
+            tier_desc="Disabled"
+            ;;
+        *)
+            echo -e "${RED}Unknown paper tier: '$tier'${RESET}"
+            echo "Available tiers: low (1), mid (2), high (3), flat (4), lamp (5), off (0)"
+            exit 1
+            ;;
+    esac
+
+    # Read current active files
+    local active_files=()
+    while IFS= read -r line; do
+        [[ -n "$line" ]] && active_files+=("$line")
+    done < <(get_active_shader_files)
+
+    # Filter out existing paper shaders
+    local new_list=()
+    for f in "${active_files[@]}"; do
+        if [[ "$f" == paper*.glsl ]]; then
+            continue
+        fi
+        new_list+=("$f")
+    done
+
+    if [[ "$paper_file" != "off" ]]; then
+        new_list+=("$paper_file")
+    fi
+
+    save_active_shaders "${new_list[@]}"
+
+    if [[ "$paper_file" == "off" ]]; then
+        echo -e "${YELLOW}○ Paper texture disabled.${RESET}"
+    else
+        echo -e "${GREEN}● Activated paper texture: ${BOLD}$paper_file${RESET} (${tier_desc})"
+    fi
+    echo -e "  Active shaders: $(format_active_summary)"
+}
+
+# Dedicated interactive E-Paper Configurator HUD inside shad
+paper_config_hud() {
+    local cur
+    cur=$(get_active_paper_preset)
+    local active_files=()
+    while IFS= read -r line; do
+        [[ -n "$line" ]] && active_files+=("$line")
+    done < <(get_active_shader_files)
+
+    local non_paper=()
+    for f in "${active_files[@]}"; do
+        if [[ "$f" != paper*.glsl ]]; then
+            non_paper+=("$(file_to_key "$f")")
+        fi
+    done
+
+    echo ""
+    echo -e "${BOLD}┌─ OpenFrontier Physical E-Paper Configurator ──────────────────────────${RESET}"
+    echo -e "${BOLD}│${RESET}  ${CYAN}Active Paper Texture${RESET} : ${GREEN}${BOLD}$cur${RESET}"
+    if [[ ${#non_paper[@]} -gt 0 ]]; then
+        local IFS=", "
+        echo -e "${BOLD}│${RESET}  ${CYAN}Other Active Shaders${RESET} : ${WHITE}${non_paper[*]}${RESET} ${DIM}(Preserved simultaneously)${RESET}"
+    fi
+    echo -e "${BOLD}├───────────────────────────────────────────────────────────────────────${RESET}"
+    echo -e "${BOLD}│${RESET}  ${CYAN}[1]${RESET} ${BOLD}📜 Low Paper (Normal)${RESET}     ${DIM}Subtle paper grain, gentle fibers, zero eye strain${RESET}"
+    echo -e "${BOLD}│${RESET}  ${CYAN}[2]${RESET} ${BOLD}📜 Mid Paper (More Paper)${RESET} ${DIM}Rich cellulose pulp, authentic book page texture${RESET}"
+    echo -e "${BOLD}│${RESET}  ${CYAN}[3]${RESET} ${BOLD}📜 High Paper (Max Craft)${RESET} ${DIM}Heavy washi fibers, intense pressed pulp weave${RESET}"
+    echo -e "${BOLD}│${RESET}  ${CYAN}[4]${RESET} ${BOLD}📖 Kindle Matte Flat${RESET}     ${DIM}Pure anti-glare e-ink roughness (no fibers)${RESET}"
+    echo -e "${BOLD}│${RESET}  ${CYAN}[5]${RESET} ${BOLD}🌟 Library Reading Lamp${RESET}  ${DIM}Warm ambient center spotlight + antique border${RESET}"
+    echo -e "${BOLD}│${RESET}  ${CYAN}[0]${RESET} ${BOLD}✖  Disable Paper Shader${RESET}  ${DIM}Turn off paper texture (keeps other shaders active)${RESET}"
+    echo -e "${BOLD}└───────────────────────────────────────────────────────────────────────${RESET}"
+    echo ""
+}
+
+paper_config_menu() {
+    clear
+    paper_config_hud
+    echo -ne "${BOLD}Select texture [1-5 (low/mid/high/flat/lamp), 0 (off), q to return]: ${RESET}"
+    read -r choice
+    if [[ "$choice" == "q" || "$choice" == "Q" || -z "$choice" ]]; then
+        echo -e "${DIM}Returning.${RESET}"
+        return 0
+    fi
+    set_paper_tier "$choice"
+}
+
+# Print concise table of all shaders with active badges
+list_shaders() {
+    echo ""
+    echo -e "${BOLD}┌─ Available OpenFrontier GLSL Shaders ─────────────────────────────────${RESET}"
+    local idx=1
+    for item in "${SHADERS[@]}"; do
+        IFS=":" read -r key file desc <<< "$item"
+        local indicator="  "
+        local status_badge=""
+        if is_shader_active "$key"; then
+            indicator="${GREEN}● ${RESET}"
+            if [[ "$key" == "paper" ]]; then
+                local pt
+                pt=$(get_active_paper_preset)
+                status_badge="${GREEN}${BOLD}[ACTIVE: ${pt}]${RESET}"
+            else
+                status_badge="${GREEN}${BOLD}[ACTIVE]${RESET}"
+            fi
+            printf "${BOLD}│${RESET} %b${BOLD}[%2d] %-14s${RESET} : %-38s %b\n" "$indicator" "$idx" "$key" "$desc" "$status_badge"
+        else
+            printf "${BOLD}│${RESET} %b[%2d] %-14s : %-38s\n" "$indicator" "$idx" "$key" "$desc"
+        fi
+        ((idx++))
+    done
+    echo -e "${BOLD}├───────────────────────────────────────────────────────────────────────${RESET}"
+    echo -e "${BOLD}│${RESET} Active: $(format_active_summary)"
+    echo -e "${BOLD}│${RESET} ${DIM}Usage:  shad <name|num>  |  shad toggle <name>  |  shad disable <name>  |  shad off${RESET}"
+    echo -e "${BOLD}└───────────────────────────────────────────────────────────────────────${RESET}"
+    echo ""
+}
+
+# Print detailed status HUD
+show_status() {
+    local active_files=()
+    while IFS= read -r line; do
+        [[ -n "$line" ]] && active_files+=("$line")
+    done < <(get_active_shader_files)
+
+    echo ""
+    echo -e "${BOLD}┌─ OpenFrontier Shader Status ──────────────────────────────────────────${RESET}"
+
+    if [[ ${#active_files[@]} -eq 0 ]]; then
+        echo -e "${BOLD}│${RESET}  ${CYAN}Active Shaders${RESET} : ${YELLOW}None (All Shaders Disabled)${RESET}"
+        echo -e "${BOLD}├───────────────────────────────────────────────────────────────────────${RESET}"
+        echo -e "${BOLD}│${RESET}  ${DIM}All custom GPU shaders are currently turned off.${RESET}"
+        echo -e "${BOLD}│${RESET}  ${DIM}Run 'shad' to open manager, or 'shad trail' to enable blaze trail.${RESET}"
+    else
+        echo -e "${BOLD}│${RESET}  ${CYAN}Active Shaders${RESET} : ${GREEN}${BOLD}${#active_files[@]} enabled simultaneously${RESET}"
+        echo -e "${BOLD}├───────────────────────────────────────────────────────────────────────${RESET}"
+        local s_idx=1
+        for f in "${active_files[@]}"; do
+            local k
+            k=$(file_to_key "$f")
+            local desc
+            desc=$(describe_shader "$k")
+            printf "${BOLD}│${RESET}  ${GREEN}●${RESET} ${BOLD}%2d.${RESET} %-18s ${WHITE}%s${RESET}\n" "$s_idx" "$f" "$desc"
+            ((s_idx++))
+        done
+        echo -e "${BOLD}├───────────────────────────────────────────────────────────────────────${RESET}"
+        echo -e "${BOLD}│${RESET}  ${DIM}Config: ~/.config/openfrontier/config${RESET}"
+        for f in "${active_files[@]}"; do
+            echo -e "${BOLD}│${RESET}  ${DIM}  custom-shader = shaders/$f${RESET}"
+        done
+    fi
+
+    echo -e "${BOLD}└───────────────────────────────────────────────────────────────────────${RESET}"
+    echo ""
+}
+
+# Interactive Multi-Shader Dashboard HUD
+show_interactive_menu() {
+    while true; do
+        clear
+        local active_files=()
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && active_files+=("$line")
+        done < <(get_active_shader_files)
+
+        echo -e "${BOLD}┌─ OpenFrontier Shader Manager (shad) ──────────────────────────────────${RESET}"
+        echo -e "${BOLD}│${RESET}  ${DIM}Stack & Toggle Multiple GLSL Shaders Simultaneously${RESET}"
+        echo -e "${BOLD}├───────────────────────────────────────────────────────────────────────${RESET}"
+        echo -e "${BOLD}│${RESET}  ${CYAN}Active Shaders${RESET}: $(format_active_summary)"
+        echo -e "${BOLD}├───────────────────────────────────────────────────────────────────────${RESET}"
+
+        local idx=1
+        for item in "${SHADERS[@]}"; do
+            IFS=":" read -r key file desc <<< "$item"
+            local is_on=false
+            if is_shader_active "$key"; then
+                is_on=true
+            fi
+
+            if [[ "$is_on" == true ]]; then
+                if [[ "$key" == "paper" ]]; then
+                    local pt
+                    pt=$(get_active_paper_preset)
+                    printf "${BOLD}│${RESET}  ${GREEN}● [ON ]${RESET} ${BOLD}[%2d] %-14s${RESET} %-36s ${GREEN}${BOLD}[ACTIVE]${RESET}\n" "$idx" "$key" "📜 Physical E-Paper [${pt}]"
+                else
+                    printf "${BOLD}│${RESET}  ${GREEN}● [ON ]${RESET} ${BOLD}[%2d] %-14s${RESET} %-36s ${GREEN}${BOLD}[ACTIVE]${RESET}\n" "$idx" "$key" "$desc"
+                fi
+            else
+                printf "${BOLD}│${RESET}  ${DIM}○ [OFF]${RESET}   [%2d] %-14s %-45s\n" "$idx" "$key" "$desc"
+            fi
+            ((idx++))
+        done
+
+        echo -e "${BOLD}├───────────────────────────────────────────────────────────────────────${RESET}"
+        echo -e "${BOLD}│${RESET}    ${YELLOW}[ 0] off / clear${RESET}    Disable all custom GPU shaders"
+        echo -e "${BOLD}│${RESET}    ${CYAN}[ p] paper-config${RESET}   Select E-Paper texture preset (Low / Mid / High)"
+        echo -e "${BOLD}│${RESET}    ${DIM}[ q] quit / exit${RESET}    Save & exit (active shaders remain loaded)"
+        echo -e "${BOLD}└───────────────────────────────────────────────────────────────────────${RESET}"
+        echo ""
+        echo -ne "${BOLD}Toggle shader(s) [1-${#SHADERS[@]}, multi e.g. '1 11', 'p' paper, '0' off, 'q' quit]: ${RESET}"
+        
+        if [[ ! -t 0 ]]; then
+            break
+        fi
+
+        read -r raw_choice || break
+
+        if [[ "$raw_choice" == "q" || "$raw_choice" == "Q" || -z "$raw_choice" ]]; then
+            echo -e "${DIM}Exited.${RESET}"
+            break
+        fi
+
+        if [[ "$raw_choice" == "p" || "$raw_choice" == "P" ]]; then
+            paper_config_menu
+            continue
+        fi
+
+        if [[ "$raw_choice" == "0" || "$raw_choice" == "off" || "$raw_choice" == "clear" ]]; then
+            disable_all_shaders
+            echo -ne "${DIM}Press Enter to continue...${RESET}"
+            read -r _ || true
+            continue
+        fi
+
+        # Handle space or comma-separated tokens
+        local tokens=(${raw_choice//,/ })
+        for tok in "${tokens[@]}"; do
+            if [[ "$tok" =~ ^[0-9]+$ ]] && (( tok >= 1 && tok <= ${#SHADERS[@]} )); then
+                local selected="${SHADERS[$((tok - 1))]}"
+                IFS=":" read -r k f d <<< "$selected"
+                toggle_shader "$k"
+            elif [[ "$tok" == "p" || "$tok" == "paper" ]]; then
+                paper_config_menu
+            elif [[ "$tok" == "0" || "$tok" == "off" ]]; then
+                disable_all_shaders
+            else
+                # Try matching by name
+                local resolved_key=""
+                for item in "${SHADERS[@]}"; do
+                    IFS=":" read -r k f d <<< "$item"
+                    if [[ "$k" == *"$tok"* ]]; then
+                        resolved_key="$k"
+                        break
+                    fi
+                done
+                if [[ -n "$resolved_key" ]]; then
+                    toggle_shader "$resolved_key"
+                else
+                    echo -e "${RED}Unknown choice: '$tok'${RESET}"
+                    sleep 1
+                fi
+            fi
+        done
+    done
+}
+
+show_help() {
+    echo ""
+    echo -e "${BOLD}OpenFrontier Multi-Shader Manager (shad)${RESET}"
+    echo "Switch, stack, and configure multiple GLSL terminal shaders simultaneously"
+    echo ""
+    echo -e "${BOLD}Multi-Shader Composition Commands:${RESET}"
+    echo "  shad                      Open interactive multi-shader toggle dashboard"
+    echo "  shad list                 List all shaders with [ON] / [OFF] active indicators"
+    echo "  shad status               Display detailed status of currently active shaders"
+    echo "  shad enable <shader...>   Enable one or more shaders (preserves active ones)"
+    echo "  shad disable <shader...>  Disable one or more shaders (preserves active ones)"
+    echo "  shad toggle <shader...>   Toggle shader(s) on or off"
+    echo "  shad only <shader>        Enable ONLY this shader, disabling all others"
+    echo "  shad off                  Disable all custom shaders cleanly"
+    echo ""
+    echo -e "${BOLD}Paper Shader Commands:${RESET}"
+    echo "  shad paper config         Open interactive E-Paper texture configurator"
+    echo "  shad set paper [tier]     Set paper tier: low (1), mid (2), high (3), flat (4), lamp (5)"
+    echo "  shad paper [tier]         Direct paper tier activation (preserves cursor trail)"
+    echo "  shad paper off            Turn off paper texture (preserves cursor trail)"
+    echo ""
+    echo -e "${BOLD}Direct Activation & Shorthand:${RESET}"
+    echo "  shad trail                Enable Orange Blaze Cursor Trail (keeps paper active!)"
+    echo "  shad lightning            Enable Electric Cursor Lightning"
+    echo "  shad bloom                Enable Neon Cyberpunk Glow"
+    echo "  shad crt                  Enable Retro Curved CRT Monitor"
+    echo "  shad matrix               Enable Falling Matrix Digital Code"
+    echo "  shad hallway              Enable 3D Matrix Perspective Tunnel"
+    echo "  shad starfield            Enable Hyperspace Warp Starfield"
+    echo "  shad glitchy              Enable Cyber Glitch & Chromatic Split"
+    echo "  shad retro                Enable Green Phosphor Raster CRT"
+    echo "  shad vhs                  Enable Retro VHS Tape & Noise"
+    echo "  shad trail paper          Enable both Trail and Paper simultaneously"
+    echo ""
+}
+
+# Resolve command-line arguments
+resolve_arg() {
+    local cmd="$1"
+    local lower
+    lower=$(echo "$cmd" | tr '[:upper:]' '[:lower:]')
+
+    case "$lower" in
+        "list"|"ls")
+            list_shaders
+            exit 0
+            ;;
+        "status"|"stat"|"info")
+            show_status
+            exit 0
+            ;;
+        "help"|"-h"|"--help")
+            show_help
+            exit 0
+            ;;
+        "off"|"disable-all"|"clear"|"stop"|"none")
+            disable_all_shaders
+            exit 0
+            ;;
+        "reload")
+            reload_terminal
+            exit 0
+            ;;
+        "enable"|"add"|"+")
+            shift
+            if [[ $# -eq 0 ]]; then
+                echo -e "${RED}Usage: shad enable <shader_name...>${RESET}" >&2
+                exit 1
+            fi
+            for item in "$@"; do
+                enable_shader "$item"
+            done
+            exit 0
+            ;;
+        "disable"|"rm"|"remove"|"del"|"-")
+            shift
+            if [[ $# -eq 0 ]]; then
+                echo -e "${RED}Usage: shad disable <shader_name...>${RESET}" >&2
+                exit 1
+            fi
+            for item in "$@"; do
+                disable_shader "$item"
+            done
+            exit 0
+            ;;
+        "toggle"|"tog")
+            shift
+            if [[ $# -eq 0 ]]; then
+                echo -e "${RED}Usage: shad toggle <shader_name...>${RESET}" >&2
+                exit 1
+            fi
+            for item in "$@"; do
+                toggle_shader "$item"
+            done
+            exit 0
+            ;;
+        "only"|"solo")
+            shift
+            if [[ $# -eq 0 ]]; then
+                echo -e "${RED}Usage: shad only <shader_name>${RESET}" >&2
+                exit 1
+            fi
+            only_shader "$1"
+            exit 0
+            ;;
+        "set")
+            shift
+            local target="${1:-}"
+            local t_low
+            t_low=$(echo "$target" | tr '[:upper:]' '[:lower:]')
+            if [[ "$t_low" == "paper" || "$t_low" == "e-paper" || "$t_low" == "grain" ]]; then
+                local tier="${2:-}"
+                if [[ -z "$tier" ]]; then
+                    paper_config_menu
+                else
+                    set_paper_tier "$tier"
+                fi
+                exit 0
+            elif [[ -n "$target" ]]; then
+                enable_shader "$target"
+                exit 0
+            else
+                echo -e "${RED}Usage: shad set paper [tier] | shad set <shader_name>${RESET}"
+                exit 1
+            fi
+            ;;
+        "paper-config"|"config-paper")
+            paper_config_menu
+            exit 0
+            ;;
+        "paper"|"paper-grain"|"grain"|"e-paper"|"fiber")
+            local sub="${2:-}"
+            sub=$(echo "$sub" | tr '[:upper:]' '[:lower:]')
+            case "$sub" in
+                "config"|"cfg"|"menu")
+                    paper_config_menu
+                    ;;
+                "set")
+                    local tier="${3:-}"
+                    if [[ -z "$tier" ]]; then
+                        paper_config_menu
+                    else
+                        set_paper_tier "$tier"
+                    fi
+                    ;;
+                "low"|"normal"|"1")
+                    set_paper_tier "low"
+                    ;;
+                "mid"|"more"|"2")
+                    set_paper_tier "mid"
+                    ;;
+                "high"|"max"|"craft"|"washi"|"3")
+                    set_paper_tier "high"
+                    ;;
+                "flat"|"kindle"|"4")
+                    set_paper_tier "flat"
+                    ;;
+                "lamp"|"golden"|"5")
+                    set_paper_tier "lamp"
+                    ;;
+                "off"|"0"|"stop"|"disable")
+                    set_paper_tier "off"
+                    ;;
+                "status")
+                    paper_config_hud
+                    ;;
+                "")
+                    paper_config_menu
+                    ;;
+                *)
+                    set_paper_tier "$sub"
+                    ;;
+            esac
+            exit 0
+            ;;
+    esac
+
+    # Direct shader arguments: could be numbers or names (e.g. 'shad trail', 'shad 1', 'shad trail paper', 'shad 1 11')
+    for arg in "$@"; do
+        local a_low
+        a_low=$(echo "$arg" | tr '[:upper:]' '[:lower:]')
+        if [[ "$a_low" =~ ^[0-9]+$ ]]; then
+            if [[ "$a_low" -eq 0 ]]; then
+                disable_all_shaders
+            elif (( a_low >= 1 && a_low <= ${#SHADERS[@]} )); then
+                local selected="${SHADERS[$((a_low - 1))]}"
+                IFS=":" read -r k f d <<< "$selected"
+                enable_shader "$k"
+            else
+                echo -e "${RED}Invalid shader number: $a_low (Range: 1-${#SHADERS[@]})${RESET}" >&2
+            fi
+        else
+            enable_shader "$a_low"
+        fi
+    done
+}
+
+main() {
+    if [[ $# -eq 0 ]]; then
+        show_interactive_menu
+    else
+        resolve_arg "$@"
+    fi
+}
+
+main "$@"

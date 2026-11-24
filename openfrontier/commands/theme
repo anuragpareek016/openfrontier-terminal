@@ -1,0 +1,420 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# OpenFrontier Terminal Theme Manager (theme)
+# Eye-Care, E-Paper, Parchment & High-Contrast Visual Architectures
+# ==============================================================================
+
+set -eo pipefail
+
+CONFIG_FILE="$HOME/.config/openfrontier/config"
+THEMES_DIR="$HOME/.config/openfrontier/themes"
+
+# ANSI Color definitions
+if [[ -t 1 ]]; then
+    BOLD="\033[1m"
+    GREEN="\033[1;32m"
+    YELLOW="\033[1;33m"
+    CYAN="\033[1;36m"
+    BLUE="\033[1;34m"
+    MAGENTA="\033[1;35m"
+    DIM="\033[2m"
+    RED="\033[1;31m"
+    RESET="\033[0m"
+else
+    BOLD=""
+    GREEN=""
+    YELLOW=""
+    CYAN=""
+    BLUE=""
+    MAGENTA=""
+    DIM=""
+    RED=""
+    RESET=""
+fi
+
+# Ensure themes directory exists
+if [[ ! -d "$THEMES_DIR" ]]; then
+    echo -e "${RED}Error: Themes directory not found at $THEMES_DIR${RESET}" >&2
+    exit 1
+fi
+
+# Curated theme catalogue: key | filename | name | description
+THEMES=(
+    "matrix:matrix.conf:⚡ Matrix Cyber:Original Terminal Pro (Neon Green on Pitch Black)"
+    "parchment:parchment.conf:📜 Warm Parchment:Antique Book Page (Cream Paper & Charcoal Ink)"
+    "e-ink:e-ink.conf:📖 E-Ink Reader:Kindle Paperwhite (Monochrome Carbon Ink)"
+    "sepia:sepia.conf:🍂 Sepia Manuscript:Aged Library Paper (Walnut Ink & Amber Glow)"
+    "slate-dark:slate-dark.conf:🕯️  Warm Slate:Gruvbox Dark Velvet (Matte Charcoal & Ivory)"
+    "everforest:everforest.conf:🌲 Everforest Calm:Forest Moss Bark (Macular-Relaxing Earth Tones)"
+    "zenwritten:zenwritten.conf:⛩️  Zen Washi:Japanese Handmade Paper (Minimalist Sumi Ink)"
+    "nord-calm:nord-calm.conf:❄️  Nord Slate:Scandinavian Arctic Twilight (Muted Pastel)"
+    "kanagawa:kanagawa.conf:🌊 Kanagawa Wave:Hokusai Woodblock (Deep Ink & Autumn Pigments)"
+    "catppuccin:catppuccin.conf:☕ Catppuccin Mocha:Velvety Pastel Crust (Soothing Low-Light Coding)"
+    "tokyonight:tokyonight.conf:🌃 TokyoNight Storm:Midnight Blue Twilight (Calm Cyber Slate)"
+    "solarized-dark:solarized-dark.conf:⚓ Solarized Dark:CIELAB Deep Ocean (Precision Ergonomic Contrast)"
+    "lotus:lotus.conf:🪷 Kanagawa Lotus:Antique Rice Paper (Floral Dyes & Sumi Ink)"
+    "solarized-light:solarized-light.conf:☀️  Solarized Light:Daylight Ivory (CIELAB Ergonomic Reading)"
+)
+
+# Detect currently active theme
+get_active_theme() {
+    if [[ ! -f "$CONFIG_FILE" ]]; then
+        echo "matrix"
+        return
+    fi
+    local line
+    line=$(grep -E '^[[:space:]]*#[[:space:]]*BEGIN_THEME:' "$CONFIG_FILE" 2>/dev/null | tail -n 1 || true)
+    if [[ -n "$line" ]]; then
+        echo "$line" | sed -E 's/^[[:space:]]*#[[:space:]]*BEGIN_THEME:[[:space:]]*//' | tr -d ' '
+        return
+    fi
+
+    # Fallback heuristic: inspect background
+    local bg
+    bg=$(grep -E '^[[:space:]]*background[[:space:]]*=' "$CONFIG_FILE" 2>/dev/null | head -n 1 | awk '{print $NF}' || true)
+    case "$bg" in
+        "#000000") echo "matrix" ;;
+        "#fbf1c7") echo "parchment" ;;
+        "#f2f2f0") echo "e-ink" ;;
+        "#f4ecd8") echo "sepia" ;;
+        "#282828") echo "slate-dark" ;;
+        "#2d353b") echo "everforest" ;;
+        "#fbf8f2") echo "zenwritten" ;;
+        "#2e3440") echo "nord-calm" ;;
+        "#1f1f28") echo "kanagawa" ;;
+        "#1e1e2e") echo "catppuccin" ;;
+        "#24283b") echo "tokyonight" ;;
+        "#002b36") echo "solarized-dark" ;;
+        "#f2ecbc") echo "lotus" ;;
+        "#fdf6e3") echo "solarized-light" ;;
+        *) echo "matrix" ;;
+    esac
+}
+
+# Reload OpenFrontier terminal instances cleanly
+reload_terminal() {
+    local signaled=0
+    if pgrep -f "OpenFrontier" >/dev/null 2>&1; then
+        pkill -USR2 -f "OpenFrontier" 2>/dev/null || true
+        signaled=1
+    fi
+    osascript -e 'tell application "System Events" to if exists process "OpenFrontierCore" then tell process "OpenFrontierCore" to click menu item "Reload Configuration" of menu 1 of menu bar item "OpenFrontier" of menu bar 1' >/dev/null 2>&1 || true
+    if [[ $signaled -eq 1 ]]; then
+        echo -e "${DIM}› OpenFrontier configuration reloaded.${RESET}"
+    fi
+}
+
+# Apply theme permanently to config
+apply_theme() {
+    local key="$1"
+    local file="$2"
+    local name="$3"
+    local desc="$4"
+
+    local full_path="$THEMES_DIR/$file"
+    if [[ ! -f "$full_path" ]]; then
+        echo -e "${RED}Error: Theme file '$full_path' does not exist.${RESET}" >&2
+        return 1
+    fi
+
+    mkdir -p "$(dirname "$CONFIG_FILE")"
+    touch "$CONFIG_FILE"
+
+    # Temporary staging file
+    local tmp_file
+    tmp_file=$(mktemp)
+
+    # If config already contains BEGIN_THEME block, replace it cleanly
+    if grep -q -E '^[[:space:]]*#[[:space:]]*BEGIN_THEME' "$CONFIG_FILE"; then
+        awk -v t_key="$key" -v t_file="$full_path" '
+            /^[[:space:]]*#[[:space:]]*BEGIN_THEME/ {
+                print "# BEGIN_THEME: " t_key
+                while ((getline line < t_file) > 0) {
+                    print line
+                }
+                close(t_file)
+                in_theme = 1
+                next
+            }
+            /^[[:space:]]*#[[:space:]]*END_THEME/ {
+                print "# END_THEME"
+                in_theme = 0
+                next
+            }
+            !in_theme { print }
+        ' "$CONFIG_FILE" > "$tmp_file"
+    else
+        # Migrate existing config by stripping legacy bare color lines and prepending block
+        awk '
+            /^[[:space:]]*(foreground|background|bold-color|selection-background|selection-foreground|cursor-color|background-opacity|background-blur|palette)[[:space:]]*=/ { next }
+            /^[[:space:]]*#[[:space:]]*(Colors|High-contrast|Cursor|Window Styling)[[:space:]]*/ { next }
+            { print }
+        ' "$CONFIG_FILE" > "$tmp_file.clean"
+
+        {
+            echo "# BEGIN_THEME: $key"
+            cat "$full_path"
+            echo "# END_THEME"
+            echo ""
+            cat "$tmp_file.clean"
+        } > "$tmp_file"
+        rm -f "$tmp_file.clean"
+    fi
+
+    mv "$tmp_file" "$CONFIG_FILE"
+
+    echo -e "${GREEN}● Activated Theme:${RESET} ${BOLD}$name${RESET}"
+    echo -e "${DIM}  $desc${RESET}"
+    echo -e "${DIM}  Saved permanently to ~/.config/openfrontier/config${RESET}"
+    reload_terminal
+}
+
+# List all available themes
+list_themes() {
+    local active
+    active=$(get_active_theme)
+
+    echo ""
+    echo -e "${BOLD}┌────────────────────────────────────────────────────────────────────────┐${RESET}"
+    echo -e "${BOLD}│                OPENFRONTIER TERMINAL THEME CATALOGUE                   │${RESET}"
+    echo -e "${BOLD}└────────────────────────────────────────────────────────────────────────┘${RESET}"
+    echo ""
+
+    local idx=1
+    for item in "${THEMES[@]}"; do
+        IFS=":" read -r k f n d <<< "$item"
+        local status=""
+        if [[ "$k" == "$active" ]]; then
+            status="${GREEN}${BOLD}[ACTIVE]${RESET} "
+        else
+            status="         "
+        fi
+        printf "  ${CYAN}[%2d]${RESET} %-16s ${status} ${BOLD}%-22s${RESET}\n" "$idx" "$k" "$n"
+        printf "       ${DIM}%s${RESET}\n\n" "$d"
+        idx=$((idx + 1))
+    done
+
+    echo -e "${DIM}Usage: theme <name|number>  |  theme status  |  theme (interactive)${RESET}"
+}
+
+# Show status of current theme
+show_status() {
+    local active
+    active=$(get_active_theme)
+
+    for item in "${THEMES[@]}"; do
+        IFS=":" read -r k f n d <<< "$item"
+        if [[ "$k" == "$active" ]]; then
+            echo ""
+            echo -e "${BOLD}Active Terminal Theme:${RESET} ${GREEN}${BOLD}$n${RESET} (${CYAN}$k${RESET})"
+            echo -e "${DIM}Description:${RESET} $d"
+            echo -e "${DIM}Config File:${RESET} ~/.config/openfrontier/config"
+            echo -e "${DIM}Source File:${RESET} $THEMES_DIR/$f"
+            echo ""
+            return
+        fi
+    done
+
+    echo -e "${YELLOW}Active Theme:${RESET} Custom ($active)"
+}
+
+# Interactive selection menu
+show_interactive_menu() {
+    local active
+    active=$(get_active_theme)
+
+    clear
+    echo -e "${BOLD}┌────────────────────────────────────────────────────────────────────────┐${RESET}"
+    echo -e "${BOLD}│                 OPENFRONTIER EYE-CARE THEME MANAGER                    │${RESET}"
+    echo -e "${BOLD}├────────────────────────────────────────────────────────────────────────┤${RESET}"
+    echo -e "${DIM}│ Select an eye-securing page or terminal profile to apply immediately.  │${RESET}"
+    echo -e "${BOLD}└────────────────────────────────────────────────────────────────────────┘${RESET}"
+    echo ""
+
+    local idx=1
+    for item in "${THEMES[@]}"; do
+        IFS=":" read -r k f n d <<< "$item"
+        local marker="  "
+        if [[ "$k" == "$active" ]]; then
+            marker="${GREEN}● [ACTIVE]${RESET} "
+            printf "  ${CYAN}${BOLD}[%2d]${RESET} %-26b %b\n" "$idx" "${BOLD}$n${RESET}" "$marker"
+        else
+            printf "  ${CYAN}${BOLD}[%2d]${RESET} %-26b\n" "$idx" "$n"
+        fi
+        printf "       ${DIM}%s${RESET}\n" "$d"
+        idx=$((idx + 1))
+    done
+
+    echo ""
+    echo -e "${DIM}────────────────────────────────────────────────────────────────────────${RESET}"
+    echo -ne "${BOLD}Select theme [1-${#THEMES[@]}, or name, q to quit]: ${RESET}"
+    read -r choice
+
+    if [[ "$choice" == "q" || "$choice" == "Q" || -z "$choice" ]]; then
+        echo -e "${DIM}Cancelled.${RESET}"
+        exit 0
+    fi
+
+    resolve_arg "$choice"
+}
+
+# Resolve arguments (number or name)
+resolve_arg() {
+    local arg="$1"
+    local lower
+    lower=$(echo "$arg" | tr '[:upper:]' '[:lower:]')
+
+    # Number input: e.g. theme 1, theme 2
+    if [[ "$lower" =~ ^[0-9]+$ ]]; then
+        if (( lower >= 1 && lower <= ${#THEMES[@]} )); then
+            local selected="${THEMES[$((lower - 1))]}"
+            IFS=":" read -r k f n d <<< "$selected"
+            apply_theme "$k" "$f" "$n" "$d"
+            exit 0
+        else
+            echo -e "${RED}Invalid number: $lower. Must be 1 to ${#THEMES[@]}.${RESET}"
+            exit 1
+        fi
+    fi
+
+    case "$lower" in
+        "matrix"|"original"|"terminal-pro"|"pro"|"green"|"hacker")
+            apply_theme "matrix" "matrix.conf" "⚡ Matrix Cyber" "Original Terminal Pro (Neon Green on Pitch Black)"
+            exit 0
+            ;;
+        "parchment"|"paper"|"novel"|"book"|"kindle-paper"|"cream")
+            apply_theme "parchment" "parchment.conf" "📜 Warm Parchment" "Antique Book Page (Cream Paper & Charcoal Ink)"
+            exit 0
+            ;;
+        "e-ink"|"kindle"|"mono"|"monochrome"|"paperwhite")
+            apply_theme "e-ink" "e-ink.conf" "📖 E-Ink Reader" "Kindle Paperwhite (Monochrome Carbon Ink)"
+            exit 0
+            ;;
+        "sepia"|"vintage"|"library"|"aged"|"amber")
+            apply_theme "sepia" "sepia.conf" "🍂 Sepia Manuscript" "Aged Library Paper (Walnut Ink & Amber Glow)"
+            exit 0
+            ;;
+        "slate-dark"|"slate"|"dark"|"dark-paper"|"gruvbox"|"gruvbox-dark")
+            apply_theme "slate-dark" "slate-dark.conf" "🕯️  Warm Slate" "Gruvbox Dark Velvet (Matte Charcoal & Ivory)"
+            exit 0
+            ;;
+        "everforest"|"forest"|"moss"|"sage"|"earth")
+            apply_theme "everforest" "everforest.conf" "🌲 Everforest Calm" "Forest Moss Bark (Macular-Relaxing Earth Tones)"
+            exit 0
+            ;;
+        "zenwritten"|"zen"|"washi"|"calligraphy"|"japan")
+            apply_theme "zenwritten" "zenwritten.conf" "⛩️  Zen Washi" "Japanese Handmade Paper (Minimalist Sumi Ink)"
+            exit 0
+            ;;
+        "nord-calm"|"nord"|"arctic"|"twilight"|"ice")
+            apply_theme "nord-calm" "nord-calm.conf" "❄️  Nord Slate" "Scandinavian Arctic Twilight (Muted Pastel)"
+            exit 0
+            ;;
+        "kanagawa"|"wave"|"hokusai"|"japan-dark")
+            apply_theme "kanagawa" "kanagawa.conf" "🌊 Kanagawa Wave" "Hokusai Woodblock (Deep Ink & Autumn Pigments)"
+            exit 0
+            ;;
+        "catppuccin"|"catppuccin-mocha"|"mocha"|"pastel")
+            apply_theme "catppuccin" "catppuccin.conf" "☕ Catppuccin Mocha" "Velvety Pastel Crust (Soothing Low-Light Coding)"
+            exit 0
+            ;;
+        "tokyonight"|"tokyo"|"storm"|"tokyo-storm")
+            apply_theme "tokyonight" "tokyonight.conf" "🌃 TokyoNight Storm" "Midnight Blue Twilight (Calm Cyber Slate)"
+            exit 0
+            ;;
+        "solarized-dark"|"solar-dark"|"solarized")
+            apply_theme "solarized-dark" "solarized-dark.conf" "⚓ Solarized Dark" "CIELAB Deep Ocean (Precision Ergonomic Contrast)"
+            exit 0
+            ;;
+        "lotus"|"kanagawa-lotus"|"rice-paper"|"lotus-paper")
+            apply_theme "lotus" "lotus.conf" "🪷 Kanagawa Lotus" "Antique Rice Paper (Floral Dyes & Sumi Ink)"
+            exit 0
+            ;;
+        "solarized-light"|"solar-light"|"ivory"|"solar")
+            apply_theme "solarized-light" "solarized-light.conf" "☀️  Solarized Light" "Daylight Ivory (CIELAB Ergonomic Reading)"
+            exit 0
+            ;;
+    esac
+
+    # Search in curated list
+    local matches=()
+    for item in "${THEMES[@]}"; do
+        IFS=":" read -r k f n d <<< "$item"
+        if [[ "$k" == *"$lower"* ]]; then
+            matches+=("$item")
+        fi
+    done
+
+    if [[ ${#matches[@]} -eq 1 ]]; then
+        IFS=":" read -r k f n d <<< "${matches[0]}"
+        apply_theme "$k" "$f" "$n" "$d"
+    elif [[ ${#matches[@]} -gt 1 ]]; then
+        echo -e "${YELLOW}Multiple themes matched '$arg':${RESET}"
+        for m in "${matches[@]}"; do
+            IFS=":" read -r k f n d <<< "$m"
+            echo "  - $k ($n)"
+        done
+        echo "Please be more specific or use 'theme list'."
+        exit 1
+    else
+        echo -e "${RED}No theme found matching '$arg'.${RESET}"
+        echo "Run 'theme list' to see all available themes."
+        exit 1
+    fi
+}
+
+show_help() {
+    echo ""
+    echo -e "${BOLD}OpenFrontier Theme Manager (theme)${RESET}"
+    echo -e "${DIM}Switch between Eye-Care E-Paper, Parchment, Slate, and Matrix profiles.${RESET}"
+    echo ""
+    echo -e "${BOLD}Usage:${RESET} theme [command | theme_name | number]"
+    echo ""
+    echo -e "${BOLD}Commands:${RESET}"
+    echo "  theme              Interactive menu to select and activate themes"
+    echo "  theme list, ls     List all available themes and their active status"
+    echo "  theme status       Show currently active theme details"
+    echo "  theme help, -h     Show this help documentation"
+    echo ""
+    echo -e "${BOLD}Dark Themes:${RESET}"
+    echo "  theme matrix          [ 1] ⚡ Matrix Cyber (Original Terminal Pro)"
+    echo "  theme slate-dark      [ 5] 🕯️  Warm Slate (Gruvbox Dark Velvet)"
+    echo "  theme everforest      [ 6] 🌲 Everforest Calm (Forest Moss Bark)"
+    echo "  theme nord-calm       [ 8] ❄️  Nord Slate (Scandinavian Arctic Twilight)"
+    echo "  theme kanagawa        [ 9] 🌊 Kanagawa Wave (Hokusai Woodblock)"
+    echo "  theme catppuccin      [10] ☕ Catppuccin Mocha (Velvety Pastel Crust)"
+    echo "  theme tokyonight      [11] 🌃 TokyoNight Storm (Midnight Blue Twilight)"
+    echo "  theme solarized-dark  [12] ⚓ Solarized Dark (CIELAB Deep Ocean)"
+    echo ""
+    echo -e "${BOLD}Light & Eye-Securing Page Themes:${RESET}"
+    echo "  theme parchment       [ 2] 📜 Warm Parchment (Antique Novel Page)"
+    echo "  theme e-ink           [ 3] 📖 E-Ink Reader (Kindle Paperwhite)"
+    echo "  theme sepia           [ 4] 🍂 Sepia Manuscript (Aged Library Paper)"
+    echo "  theme zenwritten      [ 7] ⛩️  Zen Washi (Japanese Handmade Paper)"
+    echo "  theme lotus           [13] 🪷 Kanagawa Lotus (Antique Rice Paper)"
+    echo "  theme solarized-light [14] ☀️  Solarized Light (Daylight Ivory)"
+    echo ""
+}
+
+main() {
+    if [[ $# -eq 0 ]]; then
+        show_interactive_menu
+    else
+        case "$1" in
+            "list"|"ls")
+                list_themes
+                ;;
+            "status")
+                show_status
+                ;;
+            "help"|"-h"|"--help")
+                show_help
+                ;;
+            *)
+                resolve_arg "$1"
+                ;;
+        esac
+    fi
+}
+
+main "$@"

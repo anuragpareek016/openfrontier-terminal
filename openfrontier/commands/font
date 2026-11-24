@@ -1,0 +1,306 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# OpenFrontier Terminal Font & Typography Manager (font / fonts)
+# Interactive Selector, Live Reload, Ligature & Nerd-Font Architecture
+# ==============================================================================
+
+set -eo pipefail
+
+CONFIG_FILE="$HOME/.config/openfrontier/config"
+USER_FONTS_DIR="$HOME/Library/Fonts"
+SYS_FONTS_DIR="/Library/Fonts"
+
+# ANSI Color definitions
+if [[ -t 1 ]]; then
+    BOLD="\033[1m"
+    GREEN="\033[1;32m"
+    YELLOW="\033[1;33m"
+    CYAN="\033[1;36m"
+    BLUE="\033[1;34m"
+    MAGENTA="\033[1;35m"
+    DIM="\033[2m"
+    RED="\033[1;31m"
+    RESET="\033[0m"
+else
+    BOLD=""
+    GREEN=""
+    YELLOW=""
+    CYAN=""
+    BLUE=""
+    MAGENTA=""
+    DIM=""
+    RED=""
+    RESET=""
+fi
+
+# Ensure config file exists
+if [[ ! -f "$CONFIG_FILE" ]]; then
+    echo -e "${RED}Error: OpenFrontier config not found at $CONFIG_FILE${RESET}" >&2
+    exit 1
+fi
+
+# Catalogue of Curated Premier Fonts:
+# key | family_name | label | ligatures | glyphs | description
+FONTS=(
+    "jetbrains:JetBrainsMono Nerd Font:JetBrains Mono NF:Yes:Nerd Font v3:Engineered for developers, generous x-height & distinct 0/O"
+    "firacode:FiraCode Nerd Font:Fira Code NF:Yes:Nerd Font v3:Iconic programming ligatures (->, !=, ===) with clean glyph geometry"
+    "hack:Hack Nerd Font:Hack NF:No:Nerd Font v3:Ultra-crisp geometric monospace, zero distortion at all sizes"
+    "cascadia:CaskaydiaCove Nerd Font:Cascadia Code NF:Yes:Nerd Font v3:Microsoft terminal typography with modern cursive italic curves"
+    "geist:GeistMono Nerd Font:Geist Mono NF:No:Nerd Font v3:Minimalist Swiss-inspired monospace designed by Vercel"
+    "meslo:MesloLGSDZ Nerd Font:MesloLGS NF:No:Nerd Font v3:Recommended standard for Powerlevel10k & rich shell prompts"
+    "monaco:Monaco:Apple Monaco:No:Apple Core:Classic Apple Silicon system monospace, clean bitmap/vector heritage"
+    "menlo:Menlo:Apple Menlo:No:Apple Core:macOS default monospace based on Bitstream Vera with balanced metrics"
+)
+
+get_current_font() {
+    grep "^font-family" "$CONFIG_FILE" | head -n 1 | sed -E 's/font-family[[:space:]]*=[[:space:]]*"?(.*)"?/\1/' | tr -d '"'
+}
+
+get_current_size() {
+    grep "^font-size" "$CONFIG_FILE" | head -n 1 | sed -E 's/font-size[[:space:]]*=[[:space:]]*([0-9]+)/\1/'
+}
+
+get_current_thicken() {
+    grep "^font-thicken" "$CONFIG_FILE" | head -n 1 | sed -E 's/font-thicken[[:space:]]*=[[:space:]]*([a-z]+)/\1/'
+}
+
+reload_terminal() {
+    local signaled=0
+    if pgrep -f "OpenFrontier" >/dev/null 2>&1; then
+        pkill -USR2 -f "OpenFrontier" 2>/dev/null || true
+        signaled=1
+    fi
+    osascript -e 'tell application "System Events" to if exists process "OpenFrontierCore" then tell process "OpenFrontierCore" to click menu item "Reload Configuration" of menu 1 of menu bar item "OpenFrontier" of menu bar 1' >/dev/null 2>&1 || true
+    if [[ $signaled -eq 1 ]]; then
+        echo -e "${DIM}› OpenFrontier configuration reloaded live.${RESET}"
+    fi
+}
+
+apply_font() {
+    local target_key="$1"
+    local found_family=""
+    local found_label=""
+
+    for entry in "${FONTS[@]}"; do
+        IFS=":" read -r key family label ligs glyphs desc <<< "$entry"
+        if [[ "$key" == "$target_key" || "$family" == "$target_key" ]]; then
+            found_family="$family"
+            found_label="$label"
+            break
+        fi
+    done
+
+    if [[ -z "$found_family" ]]; then
+        found_family="$target_key"
+        found_label="$target_key"
+    fi
+
+    # Update font-family in config
+    if grep -q "^font-family" "$CONFIG_FILE"; then
+        sed -i '' -E "s/^font-family[[:space:]]*=.*/font-family = \"$found_family\"/" "$CONFIG_FILE"
+    else
+        echo "font-family = \"$found_family\"" >> "$CONFIG_FILE"
+    fi
+
+    reload_terminal
+    echo -e "${GREEN}${BOLD}✔ Successfully switched font to:${RESET} ${CYAN}${BOLD}${found_label}${RESET} (${found_family})"
+    echo -e "${DIM}  OpenFrontier reloaded typography live.${RESET}"
+}
+
+apply_size() {
+    local size="$1"
+    if ! [[ "$size" =~ ^[0-9]+$ ]]; then
+        echo -e "${RED}Error: Size must be a positive integer in points (e.g. 18, 20, 22).${RESET}" >&2
+        return 1
+    fi
+
+    if grep -q "^font-size" "$CONFIG_FILE"; then
+        sed -i '' -E "s/^font-size[[:space:]]*=.*/font-size = $size/" "$CONFIG_FILE"
+    else
+        echo "font-size = $size" >> "$CONFIG_FILE"
+    fi
+
+    reload_terminal
+    echo -e "${GREEN}${BOLD}✔ Font size set to:${RESET} ${YELLOW}${BOLD}${size} pt${RESET}"
+}
+
+apply_thicken() {
+    local val="$1"
+    case "$val" in
+        on|true|yes|1)
+            val="true"
+            ;;
+        off|false|no|0)
+            val="false"
+            ;;
+        toggle)
+            local cur=$(get_current_thicken)
+            if [[ "$cur" == "true" ]]; then
+                val="false"
+            else
+                val="true"
+            fi
+            ;;
+        *)
+            echo -e "${RED}Error: Thicken must be 'on' or 'off'.${RESET}" >&2
+            return 1
+            ;;
+    esac
+
+    if grep -q "^font-thicken" "$CONFIG_FILE"; then
+        sed -i '' -E "s/^font-thicken[[:space:]]*=.*/font-thicken = $val/" "$CONFIG_FILE"
+    else
+        echo "font-thicken = $val" >> "$CONFIG_FILE"
+    fi
+
+    reload_terminal
+    echo -e "${GREEN}${BOLD}✔ Font thicken set to:${RESET} ${BLUE}${BOLD}${val}${RESET}"
+}
+
+run_test() {
+    echo ""
+    echo -e "${CYAN}${BOLD}── Typography & Glyph Render Test ─────────────────────────${RESET}"
+    echo -e "  Font: ${BOLD}$(get_current_font)${RESET} | Size: ${YELLOW}$(get_current_size) pt${RESET} | Thicken: ${BLUE}$(get_current_thicken)${RESET}"
+    echo ""
+    echo -e "  ${BOLD}Alphabet & Numerics:${RESET}"
+    echo -e "    ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    echo -e "    abcdefghijklmnopqrstuvwxyz"
+    echo -e "    0123456789 ()[]{}!@#\$%^&*-_=+"
+    echo ""
+    echo -e "  ${BOLD}Character Disambiguation:${RESET}"
+    echo -e "    0 vs O vs o  |  1 vs l vs I vs |  |  8 vs B"
+    echo ""
+    echo -e "  ${BOLD}Programming Ligatures (if supported):${RESET}"
+    echo -e "    ->  =>  -->  ==>  !=  !==  <=  >=  :=  /*  */  </  />  ||  &&"
+    echo ""
+    echo -e "  ${BOLD}Nerd Font & Powerline Glyphs:${RESET}"
+    echo -e "     git-branch  |   fork  |   github  |   python  |   rust"
+    echo -e "     linux  |   apple  |   terminal  |   folder  |  🔒 locked"
+    echo -e "${CYAN}${BOLD}───────────────────────────────────────────────────────────${RESET}"
+    echo ""
+}
+
+show_interactive_menu() {
+    while true; do
+        local cur_font=$(get_current_font)
+        local cur_size=$(get_current_size)
+        local cur_thicken=$(get_current_thicken)
+
+        clear
+        echo -e "${CYAN}${BOLD}"
+        cat << "EOF"
+  ┌─────────────────────────────────────────────────────────────┐
+  │             🔤 OPENFRONTIER TYPOGRAPHY CHOOSER              │
+  └─────────────────────────────────────────────────────────────┘
+EOF
+        echo -e "${RESET}"
+        echo -e "  ${BOLD}Current Font${RESET}  : ${GREEN}${BOLD}${cur_font}${RESET}"
+        echo -e "  ${BOLD}Current Size${RESET}  : ${YELLOW}${cur_size:-22} pt${RESET}"
+        echo -e "  ${BOLD}Stroke Thicken${RESET}: ${BLUE}${cur_thicken:-true}${RESET}"
+        echo ""
+        echo -e "  ${BOLD}SELECT A FONT TO APPLY:${RESET}"
+        echo -e "  ${DIM}─────────────────────────────────────────────────────────────${RESET}"
+
+        local idx=1
+        for entry in "${FONTS[@]}"; do
+            IFS=":" read -r key family label ligs glyphs desc <<< "$entry"
+            if [[ "$cur_font" == "$family" ]]; then
+                printf "  ${GREEN}${BOLD}[%d] %-22s ● [ACTIVE]${RESET}\n" "$idx" "$label"
+                printf "      ${CYAN}Key: %-10s | Ligatures: %-3s | Glyphs: %s${RESET}\n" "$key" "$ligs" "$glyphs"
+                printf "      ${DIM}%s${RESET}\n\n" "$desc"
+            else
+                printf "  ${CYAN}${BOLD}[%d]${RESET} ${BOLD}%-22s${RESET}\n" "$idx" "$label"
+                printf "      ${DIM}Key: %-10s | Ligatures: %-3s | Glyphs: %s${RESET}\n" "$key" "$ligs" "$glyphs"
+                printf "      ${DIM}%s${RESET}\n\n" "$desc"
+            fi
+            idx=$((idx + 1))
+        done
+
+        echo -e "  ${DIM}─────────────────────────────────────────────────────────────${RESET}"
+        echo -e "  ${YELLOW}[s]${RESET} Change Font Size        ${BLUE}[t]${RESET} Toggle Stroke Thicken"
+        echo -e "  ${MAGENTA}[p]${RESET} Preview Ligature Test   ${RED}[q]${RESET} Quit Menu"
+        echo -e "  ${DIM}─────────────────────────────────────────────────────────────${RESET}"
+        echo -ne "  ${BOLD}Choose an option [1-${#FONTS[@]}, s, t, p, q]: ${RESET}"
+        read -r choice
+
+        case "$choice" in
+            q|Q|"")
+                echo -e "\n${DIM}Exited typography chooser.${RESET}"
+                break
+                ;;
+            s|S|"size")
+                echo ""
+                echo -ne "  ${BOLD}Enter new font size in points (e.g. 18, 20, 22, 24): ${RESET}"
+                read -r new_size
+                if [[ -n "$new_size" ]]; then
+                    apply_size "$new_size"
+                    sleep 1
+                fi
+                ;;
+            t|T|"thicken")
+                echo ""
+                apply_thicken "toggle"
+                sleep 1
+                ;;
+            p|P|"test")
+                clear
+                run_test
+                echo -ne "  ${DIM}Press Enter to return to menu...${RESET}"
+                read -r _
+                ;;
+            1|2|3|4|5|6|7|8)
+                local sel_entry="${FONTS[$((choice - 1))]}"
+                IFS=":" read -r key family label ligs glyphs desc <<< "$sel_entry"
+                echo ""
+                apply_font "$key"
+                sleep 1
+                ;;
+            jetbrains|firacode|hack|cascadia|geist|meslo|monaco|menlo)
+                echo ""
+                apply_font "$choice"
+                sleep 1
+                ;;
+            *)
+                echo -e "\n  ${RED}Invalid option: $choice${RESET}"
+                sleep 1
+                ;;
+        esac
+    done
+}
+
+# Subcommand / Direct CLI dispatch
+case "${1:-}" in
+    "")
+        show_interactive_menu
+        ;;
+    list|ls|help|-h|--help)
+        show_interactive_menu
+        ;;
+    size)
+        if [[ -z "${2:-}" ]]; then
+            echo -e "${YELLOW}Current size: $(get_current_size) pt${RESET}"
+            echo -e "${DIM}Usage: font size <pt> (e.g. font size 22)${RESET}"
+        else
+            apply_size "$2"
+        fi
+        ;;
+    thicken)
+        if [[ -z "${2:-}" ]]; then
+            echo -e "${YELLOW}Current thicken: $(get_current_thicken)${RESET}"
+            echo -e "${DIM}Usage: font thicken <on|off|toggle>${RESET}"
+        else
+            apply_thicken "$2"
+        fi
+        ;;
+    test)
+        run_test
+        ;;
+    1|2|3|4|5|6|7|8)
+        sel_entry="${FONTS[$((1 - 1))]}"
+        IFS=":" read -r key family label ligs glyphs desc <<< "${FONTS[$(( $1 - 1 ))]}"
+        apply_font "$key"
+        ;;
+    *)
+        apply_font "$1"
+        ;;
+esac

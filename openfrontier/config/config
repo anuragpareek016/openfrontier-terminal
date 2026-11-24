@@ -1,0 +1,88 @@
+# BEGIN_THEME: kanagawa
+# Kanagawa Wave (Japanese Woodblock & Stone)
+# Katsushika Hokusai ink & autumn pigments, zero retinal glare
+foreground = #dcd7ba
+background = #1f1f28
+bold-color = #e6c384
+selection-background = #fef08a
+selection-foreground = #000000
+cursor-color = #c8c093
+background-opacity = 0.92
+background-blur = 20
+palette = 0=#090618
+palette = 1=#c34043
+palette = 2=#76946a
+palette = 3=#c0a36e
+palette = 4=#7e9cd8
+palette = 5=#957fb8
+palette = 6=#6a9589
+palette = 7=#c8c093
+palette = 8=#727169
+palette = 9=#e82424
+palette = 10=#98bb6c
+palette = 11=#e6c384
+palette = 12=#7fb4ca
+palette = 13=#938aa9
+palette = 14=#7aa89f
+palette = 15=#dcd7ba
+# END_THEME
+
+# OpenFrontier Terminal Configuration
+# Location: ~/.config/openfrontier/config
+
+# Typography (matched to your Terminal.app settings)
+font-family = "CaskaydiaCove Nerd Font"
+font-size = 22
+font-thicken = true
+
+# Legibility & Contrast Architecture (Prevents Washed-Out Faint Text on Light Themes)
+faint-opacity = 0.95
+minimum-contrast = 3.5
+
+# Window Styling & Transparency
+macos-titlebar-style = transparent
+window-padding-x = 12
+window-padding-y = 10
+window-inherit-working-directory = true
+
+# macOS Native Keybindings & Line Editing
+macos-option-as-alt = true
+keybind = super+backspace=text:\x15
+keybind = alt+backspace=text:\x17
+
+# Mouse & Cursor Behavior
+cursor-click-to-move = true
+mouse-shift-capture = false
+shell-integration = zsh
+
+# Shell
+command = /bin/zsh
+
+# Custom Shaders (Controlled by 'shad' CLI)
+custom-shader = shaders/paper-mid.glsl
+custom-shader = shaders/trail.glsl
+# Render the shader when terminal content changes, without forcing a
+# continuous animation loop while the terminal is idle.
+custom-shader-animation = true
+
+# ==============================================================================
+# GPU Split Multiplexing & Tiling Engine
+# ==============================================================================
+unfocused-split-opacity = 0.60
+split-inherit-working-directory = true
+
+# Native Split Controls & Navigation
+keybind = super+d=new_split:right
+keybind = super+shift+d=new_split:down
+keybind = super+[=goto_split:previous
+keybind = super+]=goto_split:next
+keybind = super+alt+left=goto_split:left
+keybind = super+alt+right=goto_split:right
+keybind = super+alt+up=goto_split:top
+keybind = super+alt+down=goto_split:bottom
+keybind = super+enter=toggle_split_zoom
+keybind = super+ctrl+==equalize_splits
+
+# Semantic Prompt Navigation (OSC 133 Telemetry)
+keybind = super+up=jump_to_prompt:-1
+keybind = super+down=jump_to_prompt:1
